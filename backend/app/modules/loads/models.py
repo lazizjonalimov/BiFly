@@ -1,0 +1,88 @@
+import uuid
+from datetime import datetime
+from decimal import Decimal
+
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import Uuid
+
+from app.core.db import Base, IdMixin, TimestampMixin
+from app.modules.fleet.models import EQUIPMENT
+
+LOAD_STATUSES = "('pending','assigned','dispatched','in_transit','delivered','completed','invoiced','paid','cancelled')"
+
+
+class Load(Base, IdMixin, TimestampMixin):
+    __tablename__ = "loads"
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    load_number: Mapped[str] = mapped_column(String(30))
+    customer_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", index=True)
+    reference: Mapped[str | None] = mapped_column(String(80))
+    commodity: Mapped[str | None] = mapped_column(String(200))
+    equipment_type: Mapped[str] = mapped_column(String(20), default="dry_van", server_default="dry_van")
+    weight_lbs: Mapped[int | None] = mapped_column(Integer)
+    customer_rate: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"), server_default="0")
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id"),
+        UniqueConstraint("organization_id", "load_number"),
+        ForeignKeyConstraint(["organization_id", "customer_id"], ["customers.organization_id", "customers.id"],
+                             name="fk_loads_customer"),
+        CheckConstraint(f"status IN {LOAD_STATUSES}", name="status_valid"),
+        CheckConstraint(f"equipment_type IN {EQUIPMENT}", name="equipment_valid"),
+        CheckConstraint("customer_rate >= 0", name="rate_nonneg"),
+    )
+
+
+class LoadStop(Base, IdMixin):
+    __tablename__ = "load_stops"
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    load_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    seq: Mapped[int] = mapped_column(Integer)
+    type: Mapped[str] = mapped_column(String(10))
+    name: Mapped[str | None] = mapped_column(String(160))
+    address: Mapped[str | None] = mapped_column(String(300))
+    city: Mapped[str] = mapped_column(String(80))
+    state: Mapped[str | None] = mapped_column(String(40))
+    postal_code: Mapped[str | None] = mapped_column(String(20))
+    appt_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    appt_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    arrived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    departed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id"),
+        UniqueConstraint("load_id", "seq"),
+        ForeignKeyConstraint(["organization_id", "load_id"], ["loads.organization_id", "loads.id"],
+                             name="fk_load_stops_load", ondelete="CASCADE"),
+        CheckConstraint("type IN ('pickup','delivery')", name="type_valid"),
+        CheckConstraint("appt_end IS NULL OR appt_start IS NULL OR appt_end >= appt_start", name="appt_order"),
+    )
+
+
+class LoadStatusEvent(Base, IdMixin):
+    """Append-only history of load status changes (no UPDATE/DELETE grant)."""
+    __tablename__ = "load_status_events"
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    load_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    from_status: Mapped[str | None] = mapped_column(String(20))
+    to_status: Mapped[str] = mapped_column(String(20))
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    note: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        ForeignKeyConstraint(["organization_id", "load_id"], ["loads.organization_id", "loads.id"],
+                             name="fk_load_status_events_load", ondelete="CASCADE"),
+    )
