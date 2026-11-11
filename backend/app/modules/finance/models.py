@@ -29,6 +29,7 @@ class Invoice(Base, IdMixin, TenantScoped, TimestampMixin):
     issued_date: Mapped[date] = mapped_column(Date)
     due_date: Mapped[date] = mapped_column(Date)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="USD", server_default="USD")
     __table_args__ = (
         UniqueConstraint("organization_id", "id"),
         UniqueConstraint("organization_id", "invoice_number"),
@@ -40,6 +41,7 @@ class Invoice(Base, IdMixin, TenantScoped, TimestampMixin):
                              name="fk_invoices_customer"),
         CheckConstraint("status IN ('sent','paid','void')", name="status_valid"),
         CheckConstraint("total >= 0", name="total_nonneg"),
+        CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_code"),
         # One live invoice per load.
         Index("uq_invoice_one_live_per_load", "load_id", unique=True, postgresql_where=text("status <> 'void'")),
     )
@@ -63,6 +65,7 @@ class Payment(Base, IdMixin, TenantScoped):
     __tablename__ = "payments"
     invoice_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="USD", server_default="USD")
     paid_on: Mapped[date] = mapped_column(Date)
     method: Mapped[str | None] = mapped_column(String(30))
     reference: Mapped[str | None] = mapped_column(String(80))
@@ -73,4 +76,5 @@ class Payment(Base, IdMixin, TenantScoped):
                              name="fk_payments_invoice"),
         Index("ix_payments_org_invoice", "organization_id", "invoice_id"),
         CheckConstraint("amount > 0", name="amount_pos"),
+        CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_code"),
     )

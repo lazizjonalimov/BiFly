@@ -65,7 +65,7 @@ def assign(body: AssignIn, p: Principal = Depends(require("dispatch:write")), db
             raise Conflict(f"A {load.status} load cannot be assigned")
 
         first = db.scalar(select(LoadStop).where(LoadStop.load_id == load.id).order_by(LoadStop.seq).limit(1))
-        on = first.appt_start.date() if first and first.appt_start else date.today()
+        on = first.appt_start.date() if first and first.appt_start else p.today()
         if driver.status != "active":
             raise Conflict("Driver is inactive", code="compliance")
         _not_expired("Driver CDL", driver.cdl_expiry, on)

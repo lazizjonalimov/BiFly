@@ -120,20 +120,24 @@ def list_loads(cursor: str | None = None, limit: int = Query(50, ge=1, le=200), 
 
 
 @router.post("", response_model=s.LoadDetail, status_code=201)
-def create_load(body: s.LoadCreate, p: Principal = Depends(require("loads:write")), db=Depends(get_db)):
-    cust = get_or_404(db, Customer, body.customer_id, "Customer")
-    if cust.status != "active":
-        raise Conflict("Customer is inactive")
-    load = Load(organization_id=p.org_id, load_number=next_number(db, p.org_id, "load_seq", "L"), created_by=p.user_id,
-                **body.model_dump(exclude={"stops"}))
-    db.add(load)
-    db.flush()
-    _add_stops(db, p, load.id, body.stops)
-    db.add(LoadStatusEvent(organization_id=p.org_id, load_id=load.id, from_status=None, to_status="pending",
-                           actor_user_id=p.user_id, note="Load created"))
-    audit(db, p, "load.created", "load", load.id, {"load_number": load.load_number})
-    db.commit()
-    return detail_view(db, load)
+def create_load(body: s.LoadCreate, p: Principal = Depends(require("loads:write")), db=Depends(get_db),
+                idempotency_key: str | None = Header(default=None)):
+    """Send an Idempotency-Key so a retried request (double click, dropped response) can't create the load twice."""
+    def work():
+        cust = get_or_404(db, Customer, body.customer_id, "Customer")
+        if cust.status != "active":
+            raise Conflict("Customer is inactive")
+        load = Load(organization_id=p.org_id, load_number=next_number(db, p.org_id, "load_seq", "L"),
+                    created_by=p.user_id, **body.model_dump(exclude={"stops"}))
+        db.add(load)
+        db.flush()
+        _add_stops(db, p, load.id, body.stops)
+        db.add(LoadStatusEvent(organization_id=p.org_id, load_id=load.id, from_status=None, to_status="pending",
+                               actor_user_id=p.user_id, note="Load created"))
+        audit(db, p, "load.created", "load", load.id, {"load_number": load.load_number})
+        db.flush()
+        return 201, detail_view(db, load).model_dump(mode="json")
+    return run_idempotent(db, p, idempotency_key, "load.create", body.model_dump(mode="json"), work)
 
 
 @router.get("/{load_id}", response_model=s.LoadDetail)

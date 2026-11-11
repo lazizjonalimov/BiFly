@@ -102,6 +102,7 @@ class LoadSummary(BaseModel):
     commodity: str | None
     equipment_type: str
     customer_rate: Decimal
+    currency: str = "USD"
     origin: str | None = None
     destination: str | None = None
     pickup_at: datetime | None = None

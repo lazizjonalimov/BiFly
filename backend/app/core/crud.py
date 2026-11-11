@@ -1,6 +1,7 @@
 """Generic permissioned, audited CRUD router for simple master-data resources."""
 import uuid
-from typing import Generic, TypeVar
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -19,9 +20,16 @@ class Page(BaseModel, Generic[T]):
 
 
 def crud_router(*, prefix: str, tag: str, entity: str, model, create_schema, update_schema, read_schema,
-                read_perm: str, write_perm: str, search: tuple[str, ...] = (), filters: tuple[str, ...] = ()
+                read_perm: str, write_perm: str, search: tuple[str, ...] = (), filters: tuple[str, ...] = (),
+                present: Callable[[Any, Principal], Any] | None = None, audit_redact: tuple[str, ...] = ()
                 ) -> APIRouter:
+    """`present` shapes a row for a particular caller (e.g. masking a field for some roles).
+    `audit_redact` names fields whose values must never be copied into the audit log."""
     r = APIRouter(prefix=prefix, tags=[tag])
+    show = present or (lambda obj, _p: obj)
+
+    def audit_data(data: dict) -> dict:
+        return {k: ("[redacted]" if k in audit_redact and v is not None else v) for k, v in data.items()}
 
     @r.get("", response_model=Page[read_schema])
     def list_(cursor: str | None = None, limit: int = Query(50, ge=1, le=200), q: str | None = None,
@@ -33,20 +41,20 @@ def crud_router(*, prefix: str, tag: str, entity: str, model, create_schema, upd
         if status and "status" in filters:
             stmt = stmt.where(model.status == status)
         rows, nxt = paginate(db, stmt, model, cursor, limit)
-        return {"items": rows, "next_cursor": nxt}
+        return {"items": [show(row, p) for row in rows], "next_cursor": nxt}
 
     @r.get("/{item_id}", response_model=read_schema)
     def get_(item_id: uuid.UUID, p: Principal = Depends(require(read_perm)), db=Depends(get_db)):
-        return get_or_404(db, model, item_id, entity)
+        return show(get_or_404(db, model, item_id, entity), p)
 
     @r.post("", response_model=read_schema, status_code=201)
     def create_(body: create_schema, p: Principal = Depends(require(write_perm)), db=Depends(get_db)):
         obj = model(organization_id=p.org_id, **body.model_dump())
         db.add(obj)
         db.flush()
-        audit(db, p, f"{entity}.created", entity, obj.id, body.model_dump(mode="json"))
+        audit(db, p, f"{entity}.created", entity, obj.id, audit_data(body.model_dump(mode="json")))
         db.commit()
-        return obj
+        return show(obj, p)
 
     @r.patch("/{item_id}", response_model=read_schema)
     def update_(item_id: uuid.UUID, body: update_schema, p: Principal = Depends(require(write_perm)),
@@ -56,9 +64,10 @@ def crud_router(*, prefix: str, tag: str, entity: str, model, create_schema, upd
         for k, v in changes.items():
             setattr(obj, k, v)
         db.flush()
-        audit(db, p, f"{entity}.updated", entity, obj.id, body.model_dump(mode="json", exclude_unset=True))
+        audit(db, p, f"{entity}.updated", entity, obj.id,
+              audit_data(body.model_dump(mode="json", exclude_unset=True)))
         db.commit()
-        return obj
+        return show(obj, p)
 
     @r.delete("/{item_id}", status_code=204)
     def delete_(item_id: uuid.UUID, p: Principal = Depends(require(write_perm)), db=Depends(get_db)):

@@ -33,6 +33,7 @@ class Load(Base, IdMixin, TenantScoped, TimestampMixin):
     equipment_type: Mapped[str] = mapped_column(String(20), default="dry_van", server_default="dry_van")
     weight_lbs: Mapped[int | None] = mapped_column(Integer)
     customer_rate: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"), server_default="0")
+    currency: Mapped[str] = mapped_column(String(3), default="USD", server_default="USD")
     notes: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     __table_args__ = (
@@ -47,6 +48,7 @@ class Load(Base, IdMixin, TenantScoped, TimestampMixin):
         CheckConstraint(f"status IN {LOAD_STATUSES}", name="status_valid"),
         CheckConstraint(f"equipment_type IN {EQUIPMENT}", name="equipment_valid"),
         CheckConstraint("customer_rate >= 0", name="rate_nonneg"),
+        CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_code"),
     )
 
 

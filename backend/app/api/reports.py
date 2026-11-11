@@ -16,7 +16,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 @router.get("/operations")
 def operations(p: Principal = Depends(require("reports:read")), db=Depends(get_db)):
     by_status = dict(db.execute(select(Load.status, func.count()).group_by(Load.status)).all())
-    today = date.today()
+    today = p.today()
     invoiced = Decimal(db.scalar(select(func.coalesce(func.sum(Invoice.total), 0)).where(Invoice.status != "void")))
     open_total = Decimal(db.scalar(select(func.coalesce(func.sum(Invoice.total), 0)).where(Invoice.status == "sent")))
     open_paid = Decimal(db.scalar(
@@ -40,13 +40,14 @@ def operations(p: Principal = Depends(require("reports:read")), db=Depends(get_d
 def compliance(days: int = Query(30, ge=0, le=365), p: Principal = Depends(require("reports:read")),
                db=Depends(get_db)):
     """Credentials that are expired or expire within `days`."""
-    horizon = date.today() + timedelta(days=days)
+    today = p.today()
+    horizon = today + timedelta(days=days)
     items: list[dict] = []
 
     def add(kind: str, label: str, entity_id, what: str, expiry: date | None) -> None:
         if expiry and expiry <= horizon:
             items.append({"entity": kind, "id": entity_id, "label": label, "credential": what,
-                          "expires_on": expiry, "expired": expiry < date.today()})
+                          "expires_on": expiry, "expired": expiry < today})
 
     drivers = select(Driver).where(Driver.status == "active",
                                    or_(Driver.cdl_expiry <= horizon, Driver.medical_cert_expiry <= horizon))

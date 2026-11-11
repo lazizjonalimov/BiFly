@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     jwt_ttl_minutes: int = 12 * 60
     jwt_issuer: str = "carrier-tms"
 
+    # Keys for encrypting sensitive columns (e.g. driver licence numbers), comma-separated. The first key
+    # encrypts; every key is tried when decrypting, which is how keys are rotated. Leave empty in development
+    # to use a built-in key. Generate one with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    field_encryption_keys: str = ""
+
     storage_dir: str = "./.storage"
     max_upload_bytes: int = 15 * 1024 * 1024
 
@@ -27,6 +33,9 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
-    if s.env == "production" and s.jwt_secret.startswith("dev-only"):
-        raise RuntimeError("TMS_JWT_SECRET must be set in production")
+    if s.env == "production":
+        if s.jwt_secret.startswith("dev-only"):
+            raise RuntimeError("TMS_JWT_SECRET must be set in production")
+        if not s.field_encryption_keys.strip():
+            raise RuntimeError("TMS_FIELD_ENCRYPTION_KEYS must be set in production")
     return s

@@ -4,6 +4,7 @@ from datetime import date
 from sqlalchemy import CheckConstraint, Date, ForeignKeyConstraint, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.crypto import EncryptedText
 from app.core.db import Base, IdMixin, TenantScoped, TimestampMixin
 
 
@@ -15,7 +16,8 @@ class Driver(Base, IdMixin, TenantScoped, TimestampMixin):
     last_name: Mapped[str] = mapped_column(String(80))
     phone: Mapped[str | None] = mapped_column(String(40))
     email: Mapped[str | None] = mapped_column(String(254))
-    cdl_number: Mapped[str | None] = mapped_column(String(40))
+    # Sensitive personal identifier: encrypted before it reaches the database (see app/core/crypto.py).
+    cdl_number: Mapped[str | None] = mapped_column("cdl_number_encrypted", EncryptedText())
     cdl_state: Mapped[str | None] = mapped_column(String(2))
     cdl_expiry: Mapped[date | None] = mapped_column(Date)
     medical_cert_expiry: Mapped[date | None] = mapped_column(Date)

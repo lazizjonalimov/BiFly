@@ -38,7 +38,7 @@ def signup(body: s.SignupIn):
         if db.execute(text("SELECT 1 FROM auth_lookup_user(:e)"), {"e": body.email}).first():
             raise Conflict("An account with this email already exists")
         db.add(Organization(id=org_id, name=body.organization_name, slug=_slugify(body.organization_name),
-                            dot_number=body.dot_number, mc_number=body.mc_number))
+                            dot_number=body.dot_number, mc_number=body.mc_number, timezone=body.timezone))
         db.flush()
         user_id = db.execute(text("SELECT auth_create_user(:e, :n, :h)"),
                              {"e": body.email, "n": body.full_name, "h": hash_password(body.password)}).scalar_one()
@@ -86,7 +86,7 @@ def login(body: s.LoginIn, request: Request):
 def me(p: Principal = Depends(get_principal), db=Depends(get_db)):
     org = db.get(Organization, p.org_id)
     return s.MeOut(user_id=p.user_id, email=p.email, full_name=p.full_name, role=p.role,
-                   organization_id=p.org_id, organization_name=org.name,
+                   organization_id=p.org_id, organization_name=org.name, timezone=org.timezone,
                    permissions=sorted(ROLE_PERMISSIONS[Role(p.role)]))
 
 

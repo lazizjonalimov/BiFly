@@ -101,7 +101,8 @@ def test_history_tables_are_append_only_for_the_app_role(make_org, sql):
     new_load(a, s["customer"]["id"])
     for stmt in ("UPDATE load_status_events SET note = 'tampered'", "DELETE FROM load_status_events",
                  "UPDATE audit_logs SET action = 'tampered'", "DELETE FROM audit_logs",
-                 "DELETE FROM invoices", "DELETE FROM payments"):
+                 "DELETE FROM invoices", "DELETE FROM payments", "UPDATE payments SET amount = 1",
+                 "UPDATE invoice_lines SET amount = 1", "DELETE FROM invoice_lines"):
         with pytest.raises(DBAPIError, match="permission denied"), sql.begin() as c:
             _ctx(c, a.org_id)
             c.execute(text(stmt))
@@ -150,3 +151,61 @@ def test_api_refuses_to_run_as_a_role_that_bypasses_rls():
     finally:
         app_engine.dispose()
         owner_engine.dispose()
+
+
+def test_every_table_forces_row_level_security():
+    """No table may be left where even the schema owner sees all tenants by default."""
+    from tests.conftest import OWNER_URL
+    eng = create_engine(OWNER_URL)
+    try:
+        with eng.connect() as c:
+            unprotected = c.execute(text(
+                "SELECT relname FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace "
+                "AND relname <> 'alembic_version' AND NOT (relrowsecurity AND relforcerowsecurity)")).scalars().all()
+            # the owner's only exceptions are explicit, read-mostly policies for the login functions
+            owner_policies = {(r.tablename, r.cmd) for r in c.execute(text(
+                "SELECT tablename, cmd FROM pg_policies WHERE policyname LIKE 'definer%'"))}
+    finally:
+        eng.dispose()
+    assert unprotected == []
+    assert owner_policies == {("organizations", "SELECT"), ("organization_memberships", "SELECT"),
+                              ("users", "SELECT"), ("users", "INSERT")}
+
+
+def test_tenant_context_does_not_survive_on_a_pooled_connection(make_org):
+    """One physical connection, reused: a company's context must be gone when the next transaction starts."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import sessionmaker
+
+    from app.modules.customers.models import Customer
+
+    a, b = make_org(), make_org()
+    a.post("/customers", {"name": "Only for A"}, 201)
+    b.post("/customers", {"name": "Only for B"}, 201)
+
+    engine = create_engine(APP_URL, pool_size=1, max_overflow=0)  # every session gets the same connection
+    factory = sessionmaker(engine, expire_on_commit=False)
+    pids = set()
+
+    def names(org_id):
+        s = factory()
+        s.info["org_id"] = uuid.UUID(org_id) if org_id else None
+        try:
+            pids.add(s.execute(text("SELECT pg_backend_pid()")).scalar())
+            return {c.name for c in s.scalars(select(Customer))}, s.execute(text("SELECT count(*) FROM customers")).scalar()
+        finally:
+            s.commit()
+            s.close()
+
+    try:
+        assert names(a.org_id) == ({"Only for A"}, 1)
+        assert names(None) == (set(), 0)          # same connection, no context: nothing leaks from A
+        assert names(b.org_id) == ({"Only for B"}, 1)
+        assert names(a.org_id) == ({"Only for A"}, 1)
+        with engine.connect() as c:                # and a raw checkout of that connection starts clean
+            pids.add(c.execute(text("SELECT pg_backend_pid()")).scalar())
+            assert c.execute(text("SELECT current_setting('app.org_id', true)")).scalar() in (None, "")
+            assert c.execute(text("SELECT count(*) FROM customers")).scalar() == 0
+    finally:
+        engine.dispose()
+    assert len(pids) == 1, "the test must have reused a single database connection"

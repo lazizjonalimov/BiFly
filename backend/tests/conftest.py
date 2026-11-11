@@ -77,10 +77,10 @@ class Api:
 
 @pytest.fixture
 def make_org(client):
-    def _make(name: str = "Acme Trucking") -> Api:
+    def _make(name: str = "Acme Trucking", **signup) -> Api:
         email = f"owner-{uuid.uuid4().hex[:8]}@example.com"
         r = client.post("/api/v1/auth/signup", json={"organization_name": name, "full_name": "Olive Owner",
-                                                      "email": email, "password": PASSWORD})
+                                                      "email": email, "password": PASSWORD, **signup})
         assert r.status_code == 201, r.text
         api = Api(client, r.json()["access_token"], r.json()["organization"]["id"])
         api.email = email

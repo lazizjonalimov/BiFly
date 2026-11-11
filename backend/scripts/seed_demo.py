@@ -21,6 +21,7 @@ def main() -> int:
     ap.add_argument("--email", default=f"owner-{secrets.token_hex(3)}@demo.example")
     ap.add_argument("--password", default=None, help="default: a random passphrase, printed at the end")
     ap.add_argument("--company", default="Northline Freight")
+    ap.add_argument("--timezone", default="America/Chicago", help="IANA time zone of the demo company")
     args = ap.parse_args()
     password = args.password or secrets.token_urlsafe(12)
 
@@ -34,7 +35,8 @@ def main() -> int:
         try:
             signup = http.post("/auth/signup", json={
                 "organization_name": args.company, "full_name": "Olivia Owner", "email": args.email,
-                "password": password, "dot_number": "3141592", "mc_number": "MC-271828"})
+                "password": password, "dot_number": "3141592", "mc_number": "MC-271828",
+                "timezone": args.timezone})
         except httpx.ConnectError:
             sys.exit(f"Could not reach the API at {args.api}. Is it running?")
         if signup.status_code == 409:

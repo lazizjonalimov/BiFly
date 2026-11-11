@@ -46,10 +46,17 @@ def test_user_in_two_companies_chooses_one_and_stays_inside_it(make_org, client)
     a_owner_id = a.get("/auth/me").json()["user_id"]
     # There is no invitation flow yet, so grant the second membership the way an operator would.
     owner = create_engine(OWNER_URL)
-    with owner.begin() as c:
-        c.execute(text("INSERT INTO organization_memberships (organization_id, user_id, role) VALUES (:o, :u, 'dispatcher')"),
-                  {"o": b.org_id, "u": a_owner_id})
-    owner.dispose()
+    grant = text("INSERT INTO organization_memberships (organization_id, user_id, role) VALUES (:o, :u, 'dispatcher')")
+    try:
+        # RLS is forced, so even the schema owner can't write a membership without scoping to that company...
+        with pytest.raises(DBAPIError, match="row-level security"), owner.begin() as c:
+            c.execute(grant, {"o": b.org_id, "u": a_owner_id})
+        # ...and can once it does.
+        with owner.begin() as c:
+            c.execute(text("SELECT set_config('app.org_id', :o, true)"), {"o": b.org_id})
+            c.execute(grant, {"o": b.org_id, "u": a_owner_id})
+    finally:
+        owner.dispose()
 
     r = _login(client, a.email, PASSWORD).json()
     assert r["access_token"] is None and r["requires_organization_selection"] is True
@@ -102,3 +109,43 @@ def test_repeated_bad_passwords_are_rate_limited(org, client):
     assert codes[:10] == [401] * 10 and codes[-1] == 429
     # even the right password is refused while locked out
     assert _login(client, org.email, PASSWORD).status_code == 429
+
+
+def test_business_dates_follow_the_company_time_zone(make_org, client):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from tests.conftest import STOPS, seed_basics
+
+    # These two zones are 25 hours apart, so their calendar dates always differ.
+    east, west = "Pacific/Kiritimati", "Pacific/Pago_Pago"
+    assert datetime.now(ZoneInfo(east)).date() > datetime.now(ZoneInfo(west)).date()
+
+    def invoice_date(tz: str):
+        org = make_org(timezone=tz)
+        assert org.get("/auth/me").json()["timezone"] == tz
+        s = seed_basics(org)
+        load = org.post("/loads", {"customer_id": s["customer"]["id"], "customer_rate": "100.00", "stops": STOPS}, 201).json()
+        org.post("/dispatch/assignments", {"load_id": load["id"], "driver_id": s["driver"]["id"],
+                                           "vehicle_id": s["truck"]["id"], "trailer_id": s["trailer"]["id"]}, expect=201)
+        org.post(f"/dispatch/loads/{load['id']}/dispatch", expect=200)
+        for stop in load["stops"]:
+            for event in ("arrived", "departed"):
+                org.post(f"/loads/{load['id']}/stops/{stop['id']}/events", {"event": event}, expect=200)
+        org.post(f"/loads/{load['id']}/documents", expect=201, data={"type": "pod"},
+                 files={"file": ("pod.pdf", b"%PDF-1.4 pod", "application/pdf")})
+        org.post(f"/loads/{load['id']}/confirm-delivery", expect=200)
+        return org.post("/invoices", {"load_id": load["id"]}, expect=201).json()["issued_date"]
+
+    assert invoice_date(east) == datetime.now(ZoneInfo(east)).date().isoformat()
+    assert invoice_date(west) == datetime.now(ZoneInfo(west)).date().isoformat()
+
+    # default and validation
+    plain = make_org()
+    assert plain.get("/organization").json()["timezone"] == "UTC"
+    assert plain.patch("/organization", {"timezone": "America/Chicago"}, expect=200).json()["timezone"] == "America/Chicago"
+    plain.patch("/organization", {"timezone": "Mars/Olympus_Mons"}, expect=422)
+    bad = client.post("/api/v1/auth/signup", json={"organization_name": "Nowhere Freight", "full_name": "N", "email":
+                                                    f"tz-{uuid.uuid4().hex[:8]}@example.com", "password": PASSWORD,
+                                                    "timezone": "Not/AZone"})
+    assert bad.status_code == 422 and bad.json()["error"]["details"][0]["field"] == "timezone"

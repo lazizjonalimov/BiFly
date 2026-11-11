@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from app.api import reports
 from app.core.config import get_settings
+from app.core.crypto import validate_encryption_keys
 from app.core.db import assert_restricted_role, get_engine, new_session
 from app.core.errors import install_error_handlers
 from app.modules.customers.router import router as customers_router
@@ -29,6 +30,7 @@ log = logging.getLogger("tms.access")
 async def lifespan(_: FastAPI):
     # Fail closed: never serve requests through a role that bypasses tenant isolation.
     assert_restricted_role(get_engine())
+    validate_encryption_keys()
     yield
 
 

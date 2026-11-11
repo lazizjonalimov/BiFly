@@ -1,6 +1,8 @@
 import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import jwt
 from fastapi import Depends, Request
@@ -12,7 +14,7 @@ from app.core.db import new_session
 from app.core.errors import Forbidden, NotFound, Unauthorized
 from app.core.permissions import has_permission
 from app.core.security import decode_token
-from app.modules.organizations.models import Membership, User
+from app.modules.organizations.models import Membership, Organization, User
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -24,6 +26,11 @@ class Principal:
     role: str
     full_name: str
     email: str
+    timezone: str = "UTC"
+
+    def today(self) -> date:
+        """The current date where this company operates (not the server's date)."""
+        return datetime.now(ZoneInfo(self.timezone)).date()
 
 
 def get_principal(request: Request, creds: HTTPAuthorizationCredentials | None = Depends(bearer)) -> Principal:
@@ -40,8 +47,9 @@ def get_principal(request: Request, creds: HTTPAuthorizationCredentials | None =
     db = new_session(org_id=org_id, user_id=user_id)
     try:
         row = db.execute(
-            select(Membership.role, User.full_name, User.email, User.token_version)
+            select(Membership.role, User.full_name, User.email, User.token_version, Organization.timezone)
             .join(User, User.id == Membership.user_id)
+            .join(Organization, Organization.id == Membership.organization_id)
             .where(Membership.user_id == user_id, Membership.organization_id == org_id,
                    Membership.active.is_(True), User.active.is_(True))
         ).first()
@@ -52,7 +60,7 @@ def get_principal(request: Request, creds: HTTPAuthorizationCredentials | None =
     if row.token_version != version:
         raise Unauthorized("Session has expired. Please sign in again.")
     request.state.principal = (user_id, org_id)
-    return Principal(user_id, org_id, row.role, row.full_name, row.email)
+    return Principal(user_id, org_id, row.role, row.full_name, row.email, row.timezone)
 
 
 def get_db(p: Principal = Depends(get_principal)) -> Iterator[Session]:

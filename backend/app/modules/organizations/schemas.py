@@ -1,9 +1,20 @@
 import uuid
 from datetime import datetime
+from typing import Annotated
+from zoneinfo import available_timezones
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
 
 from app.core.permissions import Role
+
+
+def _valid_timezone(value: str) -> str:
+    if value not in available_timezones():
+        raise ValueError("Unknown time zone. Use an IANA name such as America/Chicago")
+    return value
+
+
+TimeZone = Annotated[str, Field(max_length=64), AfterValidator(_valid_timezone)]
 
 
 class SignupIn(BaseModel):
@@ -13,6 +24,7 @@ class SignupIn(BaseModel):
     password: str = Field(min_length=10, max_length=200)
     dot_number: str | None = Field(default=None, max_length=20)
     mc_number: str | None = Field(default=None, max_length=20)
+    timezone: TimeZone = Field(default="UTC", description="IANA time zone the company operates in")
 
 
 class LoginIn(BaseModel):
@@ -48,6 +60,7 @@ class MeOut(BaseModel):
     role: str
     organization_id: uuid.UUID
     organization_name: str
+    timezone: str
     permissions: list[str]
 
 
@@ -59,6 +72,7 @@ class OrganizationOut(BaseModel):
     dot_number: str | None
     mc_number: str | None
     default_payment_terms_days: int
+    timezone: str
 
 
 class OrganizationPatch(BaseModel):
@@ -66,6 +80,7 @@ class OrganizationPatch(BaseModel):
     dot_number: str | None = Field(default=None, max_length=20)
     mc_number: str | None = Field(default=None, max_length=20)
     default_payment_terms_days: int | None = Field(default=None, ge=0, le=365)
+    timezone: TimeZone | None = None
 
 
 class UserCreate(BaseModel):

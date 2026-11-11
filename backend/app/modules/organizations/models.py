@@ -19,6 +19,8 @@ class Organization(Base, IdMixin, TimestampMixin):
     dot_number: Mapped[str | None] = mapped_column(String(20))
     mc_number: Mapped[str | None] = mapped_column(String(20))
     default_payment_terms_days: Mapped[int] = mapped_column(Integer, default=30, server_default="30")
+    # IANA zone. "Today" for invoices, due dates and expiry checks is this company's local date.
+    timezone: Mapped[str] = mapped_column(String(64), default="UTC", server_default="UTC")
     # Per-tenant gapless-ish counters, incremented with a row lock.
     load_seq: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     invoice_seq: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

@@ -43,6 +43,7 @@ class PaymentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     amount: Decimal
+    currency: str
     paid_on: date
     method: str | None
     reference: str | None
@@ -60,6 +61,7 @@ class InvoiceOut(BaseModel):
     issued_date: date
     due_date: date
     total: Decimal
+    currency: str
     paid_total: Decimal
     balance: Decimal
     overdue: bool
@@ -75,7 +77,7 @@ def _lock_invoice(db, invoice_id: uuid.UUID) -> Invoice:
     return inv
 
 
-def _views(db, invoices: list[Invoice], *, full: bool) -> list[InvoiceOut]:
+def _views(db, invoices: list[Invoice], *, today: date, full: bool) -> list[InvoiceOut]:
     """Build API views for many invoices with a fixed number of queries."""
     if not invoices:
         return []
@@ -93,13 +95,13 @@ def _views(db, invoices: list[Invoice], *, full: bool) -> list[InvoiceOut]:
             lines.setdefault(ln.invoice_id, []).append(LineOut.model_validate(ln))
         for pay in db.scalars(select(Payment).where(Payment.invoice_id.in_(ids)).order_by(Payment.created_at)):
             payments.setdefault(pay.invoice_id, []).append(PaymentOut.model_validate(pay))
-    today = date.today()
     out = []
     for inv in invoices:
         paid_total = Decimal(paid.get(inv.id) or 0)
         out.append(InvoiceOut(
             id=inv.id, invoice_number=inv.invoice_number, load_id=inv.load_id, customer_id=inv.customer_id,
             status=inv.status, issued_date=inv.issued_date, due_date=inv.due_date, total=inv.total,
+            currency=inv.currency,
             paid_total=paid_total, balance=inv.total - paid_total,
             overdue=inv.status == "sent" and inv.due_date < today, created_at=inv.created_at,
             load_number=load_numbers.get(inv.load_id), customer_name=customers.get(inv.customer_id),
@@ -107,8 +109,8 @@ def _views(db, invoices: list[Invoice], *, full: bool) -> list[InvoiceOut]:
     return out
 
 
-def _view(db, inv: Invoice) -> InvoiceOut:
-    return _views(db, [inv], full=True)[0]
+def _view(db, inv: Invoice, p: Principal) -> InvoiceOut:
+    return _views(db, [inv], today=p.today(), full=True)[0]
 
 
 class InvoicePage(BaseModel):
@@ -123,13 +125,13 @@ def list_invoices(cursor: str | None = None, limit: int = Query(50, ge=1, le=200
                   p: Principal = Depends(require("invoices:read")), db=Depends(get_db)):
     stmt = select(Invoice)
     if status == "overdue":
-        stmt = stmt.where(Invoice.status == "sent", Invoice.due_date < date.today())
+        stmt = stmt.where(Invoice.status == "sent", Invoice.due_date < p.today())
     elif status:
         stmt = stmt.where(Invoice.status == status)
     if customer_id:
         stmt = stmt.where(Invoice.customer_id == customer_id)
     rows, nxt = paginate(db, stmt, Invoice, cursor, limit)
-    return {"items": _views(db, rows, full=False), "next_cursor": nxt}
+    return {"items": _views(db, rows, today=p.today(), full=False), "next_cursor": nxt}
 
 
 @router.get("/{invoice_id}", response_model=InvoiceOut)
@@ -137,7 +139,7 @@ def get_invoice(invoice_id: uuid.UUID, p: Principal = Depends(require("invoices:
     inv = db.get(Invoice, invoice_id)
     if inv is None:
         raise NotFound("Invoice not found")
-    return _view(db, inv)
+    return _view(db, inv, p)
 
 
 @router.post("", response_model=InvoiceOut, status_code=201)
@@ -149,10 +151,11 @@ def create_invoice(body: InvoiceCreate, p: Principal = Depends(require("invoices
         if load.status != "completed":
             raise Conflict(f"Only completed loads can be invoiced (this load is {load.status})", code="not_invoiceable")
         cust = db.get(Customer, load.customer_id)
-        issued = date.today()
+        issued = p.today()
         inv = Invoice(organization_id=p.org_id, invoice_number=next_number(db, p.org_id, "invoice_seq", "INV"),
                       load_id=load.id, customer_id=load.customer_id, status="sent", issued_date=issued,
-                      due_date=issued + timedelta(days=cust.payment_terms_days), total=load.customer_rate)
+                      due_date=issued + timedelta(days=cust.payment_terms_days), total=load.customer_rate,
+                      currency=load.currency)
         db.add(inv)
         db.flush()
         db.add(InvoiceLine(organization_id=p.org_id, invoice_id=inv.id,
@@ -161,7 +164,7 @@ def create_invoice(body: InvoiceCreate, p: Principal = Depends(require("invoices
         change_status(db, p, load, "invoiced", f"Invoice {inv.invoice_number} issued")
         audit(db, p, "invoice.created", "invoice", inv.id, {"load_id": str(load.id), "total": str(inv.total)})
         db.flush()
-        return 201, _view(db, inv).model_dump(mode="json")
+        return 201, _view(db, inv, p).model_dump(mode="json")
     return run_idempotent(db, p, idempotency_key, "invoice.create", body.model_dump(mode="json"), work)
 
 
@@ -176,8 +179,8 @@ def add_payment(invoice_id: uuid.UUID, body: PaymentIn, p: Principal = Depends(r
         balance = inv.total - paid
         if body.amount > balance:
             raise Conflict(f"Payment exceeds the outstanding balance of {balance}", code="overpayment")
-        pay = Payment(organization_id=p.org_id, invoice_id=inv.id, amount=body.amount,
-                      paid_on=body.paid_on or date.today(), method=body.method, reference=body.reference,
+        pay = Payment(organization_id=p.org_id, invoice_id=inv.id, amount=body.amount, currency=inv.currency,
+                      paid_on=body.paid_on or p.today(), method=body.method, reference=body.reference,
                       created_by=p.user_id)
         db.add(pay)
         db.flush()
@@ -186,7 +189,7 @@ def add_payment(invoice_id: uuid.UUID, body: PaymentIn, p: Principal = Depends(r
             inv.status = "paid"
             change_status(db, p, lock_load_or_404(db, inv.load_id), "paid", f"Invoice {inv.invoice_number} paid in full")
         db.flush()
-        return 201, _view(db, inv).model_dump(mode="json")
+        return 201, _view(db, inv, p).model_dump(mode="json")
     return run_idempotent(db, p, idempotency_key, f"invoice.pay:{invoice_id}", body.model_dump(mode="json"), work)
 
 
@@ -201,4 +204,4 @@ def void_invoice(invoice_id: uuid.UUID, p: Principal = Depends(require("invoices
     change_status(db, p, lock_load_or_404(db, inv.load_id), "completed", f"Invoice {inv.invoice_number} voided")
     audit(db, p, "invoice.voided", "invoice", inv.id)
     db.commit()
-    return _view(db, inv)
+    return _view(db, inv, p)

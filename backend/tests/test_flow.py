@@ -269,3 +269,29 @@ def test_search_treats_wildcards_literally(org):
     assert [c["name"] for c in org.get("/customers", params={"q": "%"}).json()["items"]] == ["100% Freight"]
     assert org.get("/customers", params={"q": "_"}).json()["items"] == []
     assert len(org.get("/customers", params={"q": "FREIGHT"}).json()["items"]) == 1
+
+
+def test_load_creation_is_idempotent_and_money_carries_its_currency(org):
+    s = seed_basics(org)
+    body = {"customer_id": s["customer"]["id"], "customer_rate": "1800.00", "stops": STOPS}
+    key = {"Idempotency-Key": uuid.uuid4().hex}
+
+    first = org.post("/loads", body, expect=201, headers=key)
+    again = org.post("/loads", body, expect=201, headers=key)          # e.g. the response was lost and the app retried
+    assert again.json() == first.json() and again.headers.get("Idempotent-Replay") == "true"
+    assert len(org.get("/loads").json()["items"]) == 1                  # one load, one load number
+    org.post("/loads", {**body, "customer_rate": "1.00"}, expect=422, headers=key)   # same key, different request
+    assert org.post("/loads", body, expect=201).json()["load_number"] == "L-000002"  # no key: a new load
+
+    load = first.json()
+    assert load["currency"] == "USD"
+    _assign(org, load, s, expect=201)
+    org.post(f"/dispatch/loads/{load['id']}/dispatch", expect=200)
+    for stop in load["stops"]:
+        for event in ("arrived", "departed"):
+            org.post(f"/loads/{load['id']}/stops/{stop['id']}/events", {"event": event}, expect=200)
+    org.post(f"/loads/{load['id']}/documents", expect=201, data={"type": "pod"}, files={"file": PDF})
+    org.post(f"/loads/{load['id']}/confirm-delivery", expect=200)
+    inv = org.post("/invoices", {"load_id": load["id"]}, expect=201).json()
+    paid = org.post(f"/invoices/{inv['id']}/payments", {"amount": "1800.00"}, expect=201).json()
+    assert inv["currency"] == "USD" and paid["payments"][0]["currency"] == "USD"
