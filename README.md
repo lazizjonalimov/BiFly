@@ -18,7 +18,7 @@ isolated companies.
 | Area | Included |
 | --- | --- |
 | Companies and users | Self-service company sign-up, team management, role-based permissions (owner, admin, dispatcher, safety, fleet, accounting, driver), password change with session revocation |
-| Master data | Customers, drivers (CDL / medical tracking), trucks and trailers (insurance / registration tracking) |
+| Master data | Customers, drivers (CDL / medical tracking; licence numbers encrypted and masked), trucks and trailers (insurance / registration tracking) |
 | Loads | Multi-stop loads, per-company load numbers, enforced status lifecycle, full status history |
 | Dispatch | Dispatch board, driver + truck + trailer assignment with compliance and availability checks |
 | Tracking | Arrive / depart events per stop; status advances automatically |
@@ -26,7 +26,7 @@ isolated companies.
 | Finance | Invoice from a completed load, partial and full payments, void, receivables and overdue totals |
 | Reporting | Operations overview and a 30-day compliance report |
 | Driver API | Endpoints for the future mobile app, limited to the driver's own released loads, safe to retry offline |
-| Platform | Tenant isolation in PostgreSQL, audit log, idempotency keys, cursor pagination, OpenAPI docs |
+| Platform | Tenant isolation in PostgreSQL, audit log, idempotency keys, cursor pagination, per-company time zone, OpenAPI docs |
 
 Not built yet: the driver mobile app, the customer portal, maps, ELD, notifications, driver settlements, and the
 AWS infrastructure. See [docs/roadmap.md](docs/roadmap.md) for the full picture.
@@ -143,6 +143,7 @@ Backend (`backend/.env`, see `backend/.env.example`):
 | `TMS_DATABASE_URL` | Runtime connection. Must be the restricted role (`tms_app`), never an owner or superuser |
 | `TMS_MIGRATION_DATABASE_URL` | Schema owner (`tms_owner`), used only by Alembic |
 | `TMS_JWT_SECRET` | Token signing key. Required when `TMS_ENV=production` |
+| `TMS_FIELD_ENCRYPTION_KEYS` | Keys that encrypt driver licence numbers. Required in production. Back them up: without them the values can't be recovered |
 | `TMS_ENV` | `development`, `test` or `production` |
 | `TMS_SIGNUP_ENABLED` | Set to `false` to turn off self-service company sign-up |
 | `TMS_STORAGE_DIR` | Where uploaded documents are stored |
@@ -179,5 +180,8 @@ These are deliberate omissions for a first release, not surprises:
 - **Documents are stored on a local volume** behind a storage interface. The S3 adapter is not written.
 - **Invoices carry a single line-haul line.** No accessorials, expenses, fuel or driver settlements yet.
 - **Pickers show the first 200 records** (drivers, trucks, customers). Larger fleets need searchable pickers.
-- **Dates such as "overdue" use the server's date (UTC).** There is no per-company time zone yet.
+- **Only USD is accepted.** Currency is stored on every load, invoice and payment, so adding others is not a
+  schema change, but nothing converts or separates currencies yet.
+- **The company time zone is set at sign-up** from the browser. It can be changed through the API
+  (`PATCH /api/v1/organization`), but there is no settings screen for it yet.
 - **No background jobs.** Expiry reminders, notifications and idempotency-key cleanup need a worker.
