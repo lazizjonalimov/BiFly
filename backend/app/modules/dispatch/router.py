@@ -14,7 +14,7 @@ from app.modules.drivers.models import Driver
 from app.modules.fleet.models import Trailer, Vehicle
 from app.modules.loads import schemas as ls
 from app.modules.loads.models import Load, LoadStop
-from app.modules.loads.router import assignment_view, detail_view
+from app.modules.loads.router import assignment_view, assignment_views, detail_view, summarize
 from app.modules.loads.service import change_status, lock_load_or_404
 
 router = APIRouter(prefix="/dispatch", tags=["dispatch"])
@@ -130,18 +130,19 @@ def send_to_driver(load_id: uuid.UUID, p: Principal = Depends(require("dispatch:
     return detail_view(db, load)
 
 
-@router.get("/board")
+BOARD_COLUMNS = ("pending", "assigned", "dispatched", "in_transit", "delivered")
+BOARD_LIMIT = 500
+
+
+@router.get("/board", response_model=ls.Board)
 def board(p: Principal = Depends(require("loads:read")), db=Depends(get_db)):
-    """Open work grouped by status, for the dispatch board."""
-    columns = ("pending", "assigned", "dispatched", "in_transit", "delivered")
-    loads = list(db.scalars(select(Load).where(Load.status.in_(columns)).order_by(Load.created_at).limit(500)))
-    out: dict[str, list] = {c: [] for c in columns}
-    for ld in loads:
-        stops = list(db.scalars(select(LoadStop).where(LoadStop.load_id == ld.id).order_by(LoadStop.seq)))
-        a = assignment_view(db, ld.id)
-        out[ld.status].append({
-            "id": ld.id, "load_number": ld.load_number, "customer_id": ld.customer_id,
-            "origin": stops[0].city if stops else None, "destination": stops[-1].city if stops else None,
-            "pickup_at": stops[0].appt_start if stops else None, "equipment_type": ld.equipment_type,
-            "assignment": a.model_dump() if a else None})
-    return {"columns": out}
+    """Open work grouped by stage, oldest first. A fixed number of queries regardless of how many loads are open."""
+    loads = list(db.scalars(select(Load).where(Load.status.in_(BOARD_COLUMNS))
+                            .order_by(Load.created_at, Load.id).limit(BOARD_LIMIT + 1)))
+    truncated = len(loads) > BOARD_LIMIT
+    loads = loads[:BOARD_LIMIT]
+    assignments = assignment_views(db, [ld.id for ld in loads])
+    columns: dict[str, list[ls.BoardCard]] = {c: [] for c in BOARD_COLUMNS}
+    for summary in summarize(db, loads):
+        columns[summary.status].append(ls.BoardCard(**summary.model_dump(), assignment=assignments.get(summary.id)))
+    return ls.Board(columns=columns, truncated=truncated)

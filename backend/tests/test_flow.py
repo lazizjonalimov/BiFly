@@ -225,3 +225,47 @@ def test_validation_pagination_and_master_data(org):
     org.post("/drivers", {"first_name": "Soon", "last_name": "Expiring", "cdl_expiry": "2020-05-05"}, 201)
     comp = org.get("/reports/compliance?days=30").json()["items"]
     assert any(i["label"] == "Soon Expiring" and i["expired"] for i in comp)
+
+
+def test_dispatch_board_and_invoice_list_views(org):
+    s = seed_basics(org)
+    cid = s["customer"]["id"]
+    waiting, moving = new_load(org, cid), new_load(org, cid)
+    _assign(org, moving, s, expect=201)
+    org.post(f"/dispatch/loads/{moving['id']}/dispatch", expect=200)
+
+    board = org.get("/dispatch/board").json()
+    assert board["truncated"] is False
+    assert set(board["columns"]) == {"pending", "assigned", "dispatched", "in_transit", "delivered"}
+    assert [c["load_number"] for c in board["columns"]["pending"]] == [waiting["load_number"]]
+    card = board["columns"]["dispatched"][0]
+    assert (card["origin"], card["destination"], card["customer_name"]) == ("Chicago, IL", "Dallas, TX", "Globex")
+    assert card["assignment"]["driver_name"] == "Dana Driver" and board["columns"]["pending"][0]["assignment"] is None
+
+    # run the dispatched load through to an invoice with a part payment
+    for stop in moving["stops"]:
+        for event in ("arrived", "departed"):
+            org.post(f"/loads/{moving['id']}/stops/{stop['id']}/events", {"event": event}, expect=200)
+    org.post(f"/loads/{moving['id']}/documents", expect=201, data={"type": "pod"}, files={"file": PDF})
+    org.post(f"/loads/{moving['id']}/confirm-delivery", expect=200)
+    inv = org.post("/invoices", {"load_id": moving["id"]}, expect=201).json()
+    org.post(f"/invoices/{inv['id']}/payments", {"amount": "400.00"}, expect=201)
+
+    listed = org.get("/invoices").json()["items"]
+    assert len(listed) == 1
+    row = listed[0]
+    assert (row["total"], row["paid_total"], row["balance"]) == ("2500.00", "400.00", "2100.00")
+    assert (row["customer_name"], row["load_number"], row["overdue"]) == ("Globex", moving["load_number"], False)
+    assert org.get("/invoices?status=overdue").json()["items"] == []
+    assert float(org.get("/reports/operations").json()["receivables_outstanding"]) == 2100.0
+
+    # voiding is blocked once money has been received; a clean invoice can be voided and re-issued
+    org.post(f"/invoices/{inv['id']}/void", expect=409)
+
+
+def test_search_treats_wildcards_literally(org):
+    org.post("/customers", {"name": "100% Freight"}, 201)
+    org.post("/customers", {"name": "Plain Logistics"}, 201)
+    assert [c["name"] for c in org.get("/customers", params={"q": "%"}).json()["items"]] == ["100% Freight"]
+    assert org.get("/customers", params={"q": "_"}).json()["items"] == []
+    assert len(org.get("/customers", params={"q": "FREIGHT"}).json()["items"]) == 1

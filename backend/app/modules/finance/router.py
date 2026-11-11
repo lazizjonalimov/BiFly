@@ -75,25 +75,48 @@ def _lock_invoice(db, invoice_id: uuid.UUID) -> Invoice:
     return inv
 
 
-def _view(db, inv: Invoice, full: bool = True) -> InvoiceOut:
-    paid = db.scalar(select(func.coalesce(func.sum(Payment.amount), 0)).where(Payment.invoice_id == inv.id))
-    paid = Decimal(paid)
-    out = InvoiceOut(
-        id=inv.id, invoice_number=inv.invoice_number, load_id=inv.load_id, customer_id=inv.customer_id,
-        status=inv.status, issued_date=inv.issued_date, due_date=inv.due_date, total=inv.total, paid_total=paid,
-        balance=inv.total - paid, overdue=inv.status == "sent" and inv.due_date < date.today(),
-        created_at=inv.created_at,
-        load_number=db.scalar(select(Load.load_number).where(Load.id == inv.load_id)),
-        customer_name=db.scalar(select(Customer.name).where(Customer.id == inv.customer_id)))
+def _views(db, invoices: list[Invoice], *, full: bool) -> list[InvoiceOut]:
+    """Build API views for many invoices with a fixed number of queries."""
+    if not invoices:
+        return []
+    ids = [i.id for i in invoices]
+    paid = dict(db.execute(select(Payment.invoice_id, func.sum(Payment.amount))
+                           .where(Payment.invoice_id.in_(ids)).group_by(Payment.invoice_id)).all())
+    load_numbers = dict(db.execute(select(Load.id, Load.load_number)
+                                   .where(Load.id.in_({i.load_id for i in invoices}))).all())
+    customers = dict(db.execute(select(Customer.id, Customer.name)
+                                .where(Customer.id.in_({i.customer_id for i in invoices}))).all())
+    lines: dict[uuid.UUID, list[LineOut]] = {}
+    payments: dict[uuid.UUID, list[PaymentOut]] = {}
     if full:
-        out.lines = [LineOut.model_validate(x) for x in
-                     db.scalars(select(InvoiceLine).where(InvoiceLine.invoice_id == inv.id))]
-        out.payments = [PaymentOut.model_validate(x) for x in
-                        db.scalars(select(Payment).where(Payment.invoice_id == inv.id).order_by(Payment.created_at))]
+        for ln in db.scalars(select(InvoiceLine).where(InvoiceLine.invoice_id.in_(ids))):
+            lines.setdefault(ln.invoice_id, []).append(LineOut.model_validate(ln))
+        for pay in db.scalars(select(Payment).where(Payment.invoice_id.in_(ids)).order_by(Payment.created_at)):
+            payments.setdefault(pay.invoice_id, []).append(PaymentOut.model_validate(pay))
+    today = date.today()
+    out = []
+    for inv in invoices:
+        paid_total = Decimal(paid.get(inv.id) or 0)
+        out.append(InvoiceOut(
+            id=inv.id, invoice_number=inv.invoice_number, load_id=inv.load_id, customer_id=inv.customer_id,
+            status=inv.status, issued_date=inv.issued_date, due_date=inv.due_date, total=inv.total,
+            paid_total=paid_total, balance=inv.total - paid_total,
+            overdue=inv.status == "sent" and inv.due_date < today, created_at=inv.created_at,
+            load_number=load_numbers.get(inv.load_id), customer_name=customers.get(inv.customer_id),
+            lines=lines.get(inv.id, []), payments=payments.get(inv.id, [])))
     return out
 
 
-@router.get("")
+def _view(db, inv: Invoice) -> InvoiceOut:
+    return _views(db, [inv], full=True)[0]
+
+
+class InvoicePage(BaseModel):
+    items: list[InvoiceOut]
+    next_cursor: str | None = None
+
+
+@router.get("", response_model=InvoicePage)
 def list_invoices(cursor: str | None = None, limit: int = Query(50, ge=1, le=200),
                   status: Literal["sent", "paid", "void", "overdue"] | None = None,
                   customer_id: uuid.UUID | None = None,
@@ -106,7 +129,7 @@ def list_invoices(cursor: str | None = None, limit: int = Query(50, ge=1, le=200
     if customer_id:
         stmt = stmt.where(Invoice.customer_id == customer_id)
     rows, nxt = paginate(db, stmt, Invoice, cursor, limit)
-    return {"items": [_view(db, r, full=False) for r in rows], "next_cursor": nxt}
+    return {"items": _views(db, rows, full=False), "next_cursor": nxt}
 
 
 @router.get("/{invoice_id}", response_model=InvoiceOut)

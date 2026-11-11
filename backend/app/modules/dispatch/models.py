@@ -1,15 +1,14 @@
 import uuid
 
-from sqlalchemy import ForeignKey, ForeignKeyConstraint, Index, String, UniqueConstraint, text
+from sqlalchemy import ForeignKeyConstraint, Index, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
-from app.core.db import Base, IdMixin, TimestampMixin
+from app.core.db import Base, IdMixin, TenantScoped, TimestampMixin
 
 
-class DispatchAssignment(Base, IdMixin, TimestampMixin):
+class DispatchAssignment(Base, IdMixin, TenantScoped, TimestampMixin):
     __tablename__ = "dispatch_assignments"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     load_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     driver_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     vehicle_id: Mapped[uuid.UUID] = mapped_column(Uuid)
@@ -26,6 +25,10 @@ class DispatchAssignment(Base, IdMixin, TimestampMixin):
                              name="fk_assign_vehicle"),
         ForeignKeyConstraint(["organization_id", "trailer_id"], ["trailers.organization_id", "trailers.id"],
                              name="fk_assign_trailer"),
+        # "Is this driver/truck/trailer busy?" lookups, and the FKs.
+        Index("ix_assign_org_driver", "organization_id", "driver_id"),
+        Index("ix_assign_org_vehicle", "organization_id", "vehicle_id"),
+        Index("ix_assign_org_trailer", "organization_id", "trailer_id"),
         # A load has at most one active assignment — this is what makes a double "Assign" click safe.
         Index("uq_assignment_one_active_per_load", "load_id", unique=True, postgresql_where=text("status = 'active'")),
     )

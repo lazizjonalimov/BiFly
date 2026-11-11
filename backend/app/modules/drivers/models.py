@@ -1,15 +1,14 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import CheckConstraint, Date, ForeignKey, ForeignKeyConstraint, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, Date, ForeignKeyConstraint, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base, IdMixin, TimestampMixin
+from app.core.db import Base, IdMixin, TenantScoped, TimestampMixin
 
 
-class Driver(Base, IdMixin, TimestampMixin):
+class Driver(Base, IdMixin, TenantScoped, TimestampMixin):
     __tablename__ = "drivers"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     # Optional link to a login (role=driver) so the mobile app can find "my" assignments.
     user_id: Mapped[uuid.UUID | None] = mapped_column()
     first_name: Mapped[str] = mapped_column(String(80))
@@ -23,6 +22,7 @@ class Driver(Base, IdMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), default="active", server_default="active")
     __table_args__ = (
         UniqueConstraint("organization_id", "id"),
+        Index("ix_drivers_org_created", "organization_id", "created_at", "id"),
         UniqueConstraint("organization_id", "user_id"),
         # user must be a member of the same organization
         ForeignKeyConstraint(["organization_id", "user_id"],

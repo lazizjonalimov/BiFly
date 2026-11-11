@@ -105,3 +105,48 @@ def test_history_tables_are_append_only_for_the_app_role(make_org, sql):
         with pytest.raises(DBAPIError, match="permission denied"), sql.begin() as c:
             _ctx(c, a.org_id)
             c.execute(text(stmt))
+
+
+def test_orm_layer_scopes_reads_independently_of_rls(make_org):
+    """Defence in depth: point the database context at org B while the session belongs to org A.
+
+    RLS then only lets B's rows through, and the ORM filter only lets A's rows through, so an ORM query sees
+    nothing — while the same query in raw SQL (which skips the ORM filter) sees B's rows.
+    """
+    from sqlalchemy import select
+
+    from app.core.db import new_session
+    from app.modules.customers.models import Customer
+    from app.modules.loads.models import Load
+
+    a, b = make_org(), make_org()
+    sa_, sb = seed_basics(a), seed_basics(b)
+    new_load(a, sa_["customer"]["id"])
+    new_load(b, sb["customer"]["id"])
+
+    db = new_session(org_id=uuid.UUID(a.org_id))
+    try:
+        assert {c.name for c in db.scalars(select(Customer))} == {"Globex"}          # normal: A's own data
+        db.execute(text("SELECT set_config('app.org_id', :o, true)"), {"o": b.org_id})  # simulate a wrong DB context
+        assert db.execute(text("SELECT count(*) FROM customers")).scalar() == 1         # RLS now exposes B's row...
+        assert list(db.scalars(select(Customer))) == []                                 # ...but the ORM won't load it
+        assert db.scalar(select(Customer.name)) is None                                 # column selects
+        assert list(db.execute(select(Load.load_number, Customer.name).join(Customer, Customer.id == Load.customer_id))) == []
+        assert db.get(Customer, uuid.UUID(sb["customer"]["id"])) is None                # primary-key lookups
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_api_refuses_to_run_as_a_role_that_bypasses_rls():
+    from app.core.db import assert_restricted_role
+    from tests.conftest import OWNER_URL
+
+    app_engine, owner_engine = create_engine(APP_URL), create_engine(OWNER_URL)
+    try:
+        assert_restricted_role(app_engine)  # the runtime role is fine
+        with pytest.raises(RuntimeError, match="owns application tables"):
+            assert_restricted_role(owner_engine)
+    finally:
+        app_engine.dispose()
+        owner_engine.dispose()

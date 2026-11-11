@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app.core.deps import Principal, get_db, require
 from app.modules.drivers.models import Driver
@@ -48,12 +48,16 @@ def compliance(days: int = Query(30, ge=0, le=365), p: Principal = Depends(requi
             items.append({"entity": kind, "id": entity_id, "label": label, "credential": what,
                           "expires_on": expiry, "expired": expiry < date.today()})
 
-    for d in db.scalars(select(Driver).where(Driver.status == "active")):
+    drivers = select(Driver).where(Driver.status == "active",
+                                   or_(Driver.cdl_expiry <= horizon, Driver.medical_cert_expiry <= horizon))
+    for d in db.scalars(drivers):
         name = f"{d.first_name} {d.last_name}"
         add("driver", name, d.id, "CDL", d.cdl_expiry)
         add("driver", name, d.id, "Medical certificate", d.medical_cert_expiry)
     for model, kind in ((Vehicle, "vehicle"), (Trailer, "trailer")):
-        for v in db.scalars(select(model).where(model.status != "inactive")):
+        units = select(model).where(model.status != "inactive",
+                                    or_(model.insurance_expiry <= horizon, model.registration_expiry <= horizon))
+        for v in db.scalars(units):
             add(kind, v.unit_number, v.id, "Insurance", v.insurance_expiry)
             add(kind, v.unit_number, v.id, "Registration", v.registration_expiry)
     items.sort(key=lambda x: x["expires_on"])

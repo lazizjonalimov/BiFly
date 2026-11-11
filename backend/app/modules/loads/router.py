@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Header, Query
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.core.audit import audit
 from app.core.crud import Page
@@ -35,18 +35,52 @@ def _add_stops(db, p: Principal, load_id: uuid.UUID, stops: list[s.StopIn]) -> N
     db.flush()
 
 
-def assignment_view(db, load_id: uuid.UUID) -> s.AssignmentOut | None:
-    row = db.execute(
+def _place(stop: LoadStop | None) -> str | None:
+    if stop is None:
+        return None
+    return f"{stop.city}, {stop.state}" if stop.state else stop.city
+
+
+def assignment_views(db, load_ids: list[uuid.UUID]) -> dict[uuid.UUID, s.AssignmentOut]:
+    """Active assignment per load, resolved in a single query however many loads are asked for."""
+    if not load_ids:
+        return {}
+    rows = db.execute(
         select(DispatchAssignment, Driver, Vehicle, Trailer)
         .join(Driver, Driver.id == DispatchAssignment.driver_id)
         .join(Vehicle, Vehicle.id == DispatchAssignment.vehicle_id)
         .outerjoin(Trailer, Trailer.id == DispatchAssignment.trailer_id)
-        .where(DispatchAssignment.load_id == load_id, DispatchAssignment.status == "active")).first()
-    if not row:
-        return None
-    a, d, v, t = row
-    return s.AssignmentOut(id=a.id, driver_id=d.id, driver_name=f"{d.first_name} {d.last_name}", vehicle_id=v.id,
-                           vehicle_unit=v.unit_number, trailer_id=a.trailer_id, trailer_unit=t.unit_number if t else None)
+        .where(DispatchAssignment.load_id.in_(load_ids), DispatchAssignment.status == "active"))
+    return {
+        a.load_id: s.AssignmentOut(
+            id=a.id, driver_id=d.id, driver_name=f"{d.first_name} {d.last_name}", vehicle_id=v.id,
+            vehicle_unit=v.unit_number, trailer_id=a.trailer_id, trailer_unit=t.unit_number if t else None)
+        for a, d, v, t in rows
+    }
+
+
+def assignment_view(db, load_id: uuid.UUID) -> s.AssignmentOut | None:
+    return assignment_views(db, [load_id]).get(load_id)
+
+
+def summarize(db, loads: list[Load]) -> list[s.LoadSummary]:
+    """List rows with customer name and route. Two extra queries in total, not two per load."""
+    if not loads:
+        return []
+    names = dict(db.execute(select(Customer.id, Customer.name)
+                            .where(Customer.id.in_({ld.customer_id for ld in loads}))).all())
+    stops: dict[uuid.UUID, list[LoadStop]] = {}
+    for st in db.scalars(select(LoadStop).where(LoadStop.load_id.in_([ld.id for ld in loads]))
+                         .order_by(LoadStop.load_id, LoadStop.seq)):
+        stops.setdefault(st.load_id, []).append(st)
+    out = []
+    for ld in loads:
+        sl = stops.get(ld.id, [])
+        out.append(s.LoadSummary.model_validate(ld).model_copy(update={
+            "customer_name": names.get(ld.customer_id),
+            "origin": _place(sl[0]) if sl else None, "destination": _place(sl[-1]) if sl else None,
+            "pickup_at": sl[0].appt_start if sl else None}))
+    return out
 
 
 def detail_view(db, load: Load) -> s.LoadDetail:
@@ -58,10 +92,9 @@ def detail_view(db, load: Load) -> s.LoadDetail:
                         .where(Document.load_id == load.id, Document.type == "pod")) > 0
     inv = db.scalar(select(Invoice.id).where(Invoice.load_id == load.id, Invoice.status != "void"))
     first, last = (stops[0], stops[-1]) if stops else (None, None)
-    place = lambda st: f"{st.city}, {st.state}" if st and st.state else (st.city if st else None)  # noqa: E731
     return s.LoadDetail(
         **s.LoadSummary.model_validate(load).model_dump(exclude={"customer_name", "origin", "destination", "pickup_at"}),
-        customer_name=cust.name if cust else None, origin=place(first), destination=place(last),
+        customer_name=cust.name if cust else None, origin=_place(first), destination=_place(last),
         pickup_at=first.appt_start if first else None,
         weight_lbs=load.weight_lbs, notes=load.notes,
         stops=[s.StopOut.model_validate(x) for x in stops],
@@ -71,7 +104,7 @@ def detail_view(db, load: Load) -> s.LoadDetail:
 
 
 @router.get("", response_model=Page[s.LoadSummary])
-def list_loads(cursor: str | None = None, limit: int = Query(50, ge=1, le=200), status: str | None = None,
+def list_loads(cursor: str | None = None, limit: int = Query(50, ge=1, le=200), status: s.LoadStatus | None = None,
                customer_id: uuid.UUID | None = None, q: str | None = None,
                p: Principal = Depends(require("loads:read")), db=Depends(get_db)):
     stmt = select(Load)
@@ -83,24 +116,7 @@ def list_loads(cursor: str | None = None, limit: int = Query(50, ge=1, le=200), 
         like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         stmt = stmt.where(Load.load_number.ilike(like) | Load.reference.ilike(like) | Load.commodity.ilike(like))
     rows, nxt = paginate(db, stmt, Load, cursor, limit)
-    ids = [r.id for r in rows]
-    names = {}
-    if rows:
-        names = dict(db.execute(select(Customer.id, Customer.name)
-                                .where(Customer.id.in_({r.customer_id for r in rows}))).all())
-    stops: dict[uuid.UUID, list[LoadStop]] = {}
-    if ids:
-        for st in db.scalars(select(LoadStop).where(LoadStop.load_id.in_(ids)).order_by(LoadStop.seq)):
-            stops.setdefault(st.load_id, []).append(st)
-    place = lambda st: (f"{st.city}, {st.state}" if st.state else st.city)  # noqa: E731
-    items = []
-    for r in rows:
-        sl = stops.get(r.id, [])
-        items.append(s.LoadSummary.model_validate(r).model_copy(update={
-            "customer_name": names.get(r.customer_id),
-            "origin": place(sl[0]) if sl else None, "destination": place(sl[-1]) if sl else None,
-            "pickup_at": sl[0].appt_start if sl else None}))
-    return {"items": items, "next_cursor": nxt}
+    return {"items": summarize(db, rows), "next_cursor": nxt}
 
 
 @router.post("", response_model=s.LoadDetail, status_code=201)
@@ -137,8 +153,7 @@ def update_load(load_id: uuid.UUID, body: s.LoadUpdate, p: Principal = Depends(r
     if body.stops is not None:
         if load.status not in STOPS_EDITABLE:
             raise Conflict("Stops cannot be changed once a load has been dispatched")
-        db.query(LoadStop).filter(LoadStop.load_id == load.id).delete()
-        db.flush()
+        db.execute(delete(LoadStop).where(LoadStop.load_id == load.id))
         _add_stops(db, p, load.id, body.stops)
     audit(db, p, "load.updated", "load", load.id, body.model_dump(mode="json", exclude_unset=True))
     db.commit()

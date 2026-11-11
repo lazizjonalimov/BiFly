@@ -21,6 +21,11 @@ class LoginIn(BaseModel):
     organization_id: uuid.UUID | None = None
 
 
+class PasswordChangeIn(BaseModel):
+    current_password: str = Field(max_length=200)
+    new_password: str = Field(min_length=10, max_length=200)
+
+
 class OrgChoice(BaseModel):
     id: uuid.UUID
     name: str

@@ -23,12 +23,18 @@ def verify_password(pw: str, hashed: str | None) -> bool:
         return False
 
 
-def create_token(user_id: uuid.UUID, org_id: uuid.UUID) -> str:
+def create_token(user_id: uuid.UUID, org_id: uuid.UUID, token_version: int) -> str:
+    """Access token for one user in one organization.
+
+    `ver` is the user's token_version at issue time; the API rejects the token once that number moves on
+    (password change), which is how already-issued tokens are revoked.
+    """
     s = get_settings()
     now = datetime.now(UTC)
     claims = {
         "sub": str(user_id),
         "org": str(org_id),
+        "ver": token_version,
         "iss": s.jwt_issuer,
         "iat": now,
         "exp": now + timedelta(minutes=s.jwt_ttl_minutes),
@@ -39,4 +45,4 @@ def create_token(user_id: uuid.UUID, org_id: uuid.UUID) -> str:
 def decode_token(token: str) -> dict:
     s = get_settings()
     return jwt.decode(token, s.jwt_secret, algorithms=["HS256"], issuer=s.jwt_issuer,
-                      options={"require": ["exp", "sub", "org", "iss"]})
+                      options={"require": ["exp", "sub", "org", "ver", "iss"]})

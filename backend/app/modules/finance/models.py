@@ -6,7 +6,6 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
-    ForeignKey,
     ForeignKeyConstraint,
     Index,
     Numeric,
@@ -18,12 +17,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
-from app.core.db import Base, IdMixin, TimestampMixin
+from app.core.db import Base, IdMixin, TenantScoped, TimestampMixin
 
 
-class Invoice(Base, IdMixin, TimestampMixin):
+class Invoice(Base, IdMixin, TenantScoped, TimestampMixin):
     __tablename__ = "invoices"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     invoice_number: Mapped[str] = mapped_column(String(30))
     load_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     customer_id: Mapped[uuid.UUID] = mapped_column(Uuid)
@@ -34,6 +32,9 @@ class Invoice(Base, IdMixin, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("organization_id", "id"),
         UniqueConstraint("organization_id", "invoice_number"),
+        Index("ix_invoices_org_created", "organization_id", "created_at", "id"),
+        Index("ix_invoices_org_status_due", "organization_id", "status", "due_date"),
+        Index("ix_invoices_org_customer", "organization_id", "customer_id"),
         ForeignKeyConstraint(["organization_id", "load_id"], ["loads.organization_id", "loads.id"], name="fk_invoices_load"),
         ForeignKeyConstraint(["organization_id", "customer_id"], ["customers.organization_id", "customers.id"],
                              name="fk_invoices_customer"),
@@ -44,9 +45,8 @@ class Invoice(Base, IdMixin, TimestampMixin):
     )
 
 
-class InvoiceLine(Base, IdMixin):
+class InvoiceLine(Base, IdMixin, TenantScoped):
     __tablename__ = "invoice_lines"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     invoice_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     description: Mapped[str] = mapped_column(String(300))
     quantity: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("1"))
@@ -55,12 +55,12 @@ class InvoiceLine(Base, IdMixin):
     __table_args__ = (
         ForeignKeyConstraint(["organization_id", "invoice_id"], ["invoices.organization_id", "invoices.id"],
                              name="fk_invoice_lines_invoice", ondelete="CASCADE"),
+        Index("ix_invoice_lines_org_invoice", "organization_id", "invoice_id"),
     )
 
 
-class Payment(Base, IdMixin):
+class Payment(Base, IdMixin, TenantScoped):
     __tablename__ = "payments"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     invoice_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     paid_on: Mapped[date] = mapped_column(Date)
@@ -71,5 +71,6 @@ class Payment(Base, IdMixin):
     __table_args__ = (
         ForeignKeyConstraint(["organization_id", "invoice_id"], ["invoices.organization_id", "invoices.id"],
                              name="fk_payments_invoice"),
+        Index("ix_payments_org_invoice", "organization_id", "invoice_id"),
         CheckConstraint("amount > 0", name="amount_pos"),
     )

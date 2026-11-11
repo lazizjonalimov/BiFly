@@ -2,12 +2,12 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
-from app.core.db import Base, IdMixin, TimestampMixin
+from app.core.db import Base, IdMixin, TenantScoped, TimestampMixin
 
 ROLES = "('owner','admin','dispatcher','safety_manager','fleet_manager','accountant','driver','customer')"
 
@@ -31,12 +31,13 @@ class User(Base, IdMixin, TimestampMixin):
     full_name: Mapped[str] = mapped_column(String(120))
     password_hash: Mapped[str | None] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    # Embedded in access tokens; bumping it (e.g. on password change) invalidates every token already issued.
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     __table_args__ = (CheckConstraint("email = lower(email)", name="email_lowercase"),)
 
 
-class Membership(Base, IdMixin, TimestampMixin):
+class Membership(Base, IdMixin, TenantScoped, TimestampMixin):
     __tablename__ = "organization_memberships"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     role: Mapped[str] = mapped_column(String(30))
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
@@ -47,10 +48,9 @@ class Membership(Base, IdMixin, TimestampMixin):
     )
 
 
-class AuditLog(Base, IdMixin):
+class AuditLog(Base, IdMixin, TenantScoped):
     """Append-only (UPDATE/DELETE are not granted to the app role)."""
     __tablename__ = "audit_logs"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     action: Mapped[str] = mapped_column(String(60))
     entity_type: Mapped[str] = mapped_column(String(60))
@@ -58,9 +58,13 @@ class AuditLog(Base, IdMixin):
     data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     request_id: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        Index("ix_audit_logs_org_created", "organization_id", "created_at", "id"),
+        Index("ix_audit_logs_org_entity", "organization_id", "entity_type", "entity_id"),
+    )
 
 
-class IdempotencyKey(Base):
+class IdempotencyKey(Base, TenantScoped):
     __tablename__ = "idempotency_keys"
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True)
@@ -69,7 +73,7 @@ class IdempotencyKey(Base):
     request_hash: Mapped[str] = mapped_column(String(64))
     response_status: Mapped[int | None] = mapped_column(Integer)
     response_body: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Indexed so a retention job can purge old keys cheaply.
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
-__all__ = ["Organization", "User", "Membership", "AuditLog", "IdempotencyKey", "Text"]

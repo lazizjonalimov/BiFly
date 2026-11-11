@@ -31,15 +31,16 @@ def get_principal(request: Request, creds: HTTPAuthorizationCredentials | None =
         raise Unauthorized("Authentication required")
     try:
         claims = decode_token(creds.credentials)
-        user_id, org_id = uuid.UUID(claims["sub"]), uuid.UUID(claims["org"])
-    except (jwt.PyJWTError, ValueError, KeyError) as e:
+        user_id, org_id, version = uuid.UUID(claims["sub"]), uuid.UUID(claims["org"]), int(claims["ver"])
+    except (jwt.PyJWTError, ValueError, KeyError, TypeError) as e:
         raise Unauthorized("Invalid or expired token") from e
 
-    # Re-check membership on every request so role changes/deactivation take effect immediately.
+    # Checked against the database on every request, so a role change, deactivation or password change
+    # takes effect immediately rather than when the token expires.
     db = new_session(org_id=org_id, user_id=user_id)
     try:
         row = db.execute(
-            select(Membership.role, User.full_name, User.email)
+            select(Membership.role, User.full_name, User.email, User.token_version)
             .join(User, User.id == Membership.user_id)
             .where(Membership.user_id == user_id, Membership.organization_id == org_id,
                    Membership.active.is_(True), User.active.is_(True))
@@ -48,6 +49,8 @@ def get_principal(request: Request, creds: HTTPAuthorizationCredentials | None =
         db.close()
     if row is None:
         raise Unauthorized("Account is not active in this organization")
+    if row.token_version != version:
+        raise Unauthorized("Session has expired. Please sign in again.")
     request.state.principal = (user_id, org_id)
     return Principal(user_id, org_id, row.role, row.full_name, row.email)
 

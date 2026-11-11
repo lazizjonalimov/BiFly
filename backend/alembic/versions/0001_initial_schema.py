@@ -3,10 +3,9 @@
 Revision ID: 0001
 Revises: 
 """
+from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
-
-from alembic import op
 
 revision = '0001'
 down_revision = None
@@ -35,6 +34,7 @@ def upgrade() -> None:
     sa.Column('full_name', sa.String(length=120), nullable=False),
     sa.Column('password_hash', sa.String(length=255), nullable=True),
     sa.Column('active', sa.Boolean(), server_default='true', nullable=False),
+    sa.Column('token_version', sa.Integer(), server_default='0', nullable=False),
     sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -55,7 +55,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], name=op.f('fk_audit_logs_organization_id'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_audit_logs'))
     )
-    op.create_index(op.f('ix_audit_logs_organization_id'), 'audit_logs', ['organization_id'], unique=False)
+    op.create_index('ix_audit_logs_org_created', 'audit_logs', ['organization_id', 'created_at', 'id'], unique=False)
+    op.create_index('ix_audit_logs_org_entity', 'audit_logs', ['organization_id', 'entity_type', 'entity_id'], unique=False)
     op.create_table('customers',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('name', sa.String(length=160), nullable=False),
@@ -74,7 +75,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_customers')),
     sa.UniqueConstraint('organization_id', 'id', name=op.f('uq_customers_organization_id_id'))
     )
-    op.create_index(op.f('ix_customers_organization_id'), 'customers', ['organization_id'], unique=False)
+    op.create_index('ix_customers_org_created', 'customers', ['organization_id', 'created_at', 'id'], unique=False)
     op.create_table('idempotency_keys',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('key', sa.String(length=128), nullable=False),
@@ -86,6 +87,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], name=op.f('fk_idempotency_keys_organization_id'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('organization_id', 'key', name=op.f('pk_idempotency_keys'))
     )
+    op.create_index(op.f('ix_idempotency_keys_created_at'), 'idempotency_keys', ['created_at'], unique=False)
     op.create_table('organization_memberships',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
@@ -101,7 +103,6 @@ def upgrade() -> None:
     sa.UniqueConstraint('organization_id', 'id', name=op.f('uq_organization_memberships_organization_id_id')),
     sa.UniqueConstraint('organization_id', 'user_id', name=op.f('uq_organization_memberships_organization_id_user_id'))
     )
-    op.create_index(op.f('ix_organization_memberships_organization_id'), 'organization_memberships', ['organization_id'], unique=False)
     op.create_index(op.f('ix_organization_memberships_user_id'), 'organization_memberships', ['user_id'], unique=False)
     op.create_table('trailers',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
@@ -122,7 +123,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('organization_id', 'id', name=op.f('uq_trailers_organization_id_id')),
     sa.UniqueConstraint('organization_id', 'unit_number', name=op.f('uq_trailers_organization_id_unit_number'))
     )
-    op.create_index(op.f('ix_trailers_organization_id'), 'trailers', ['organization_id'], unique=False)
+    op.create_index('ix_trailers_org_created', 'trailers', ['organization_id', 'created_at', 'id'], unique=False)
     op.create_table('vehicles',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('unit_number', sa.String(length=40), nullable=False),
@@ -143,7 +144,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('organization_id', 'id', name=op.f('uq_vehicles_organization_id_id')),
     sa.UniqueConstraint('organization_id', 'unit_number', name=op.f('uq_vehicles_organization_id_unit_number'))
     )
-    op.create_index(op.f('ix_vehicles_organization_id'), 'vehicles', ['organization_id'], unique=False)
+    op.create_index('ix_vehicles_org_created', 'vehicles', ['organization_id', 'created_at', 'id'], unique=False)
     op.create_table('drivers',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=True),
@@ -166,7 +167,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('organization_id', 'id', name=op.f('uq_drivers_organization_id_id')),
     sa.UniqueConstraint('organization_id', 'user_id', name=op.f('uq_drivers_organization_id_user_id'))
     )
-    op.create_index(op.f('ix_drivers_organization_id'), 'drivers', ['organization_id'], unique=False)
+    op.create_index('ix_drivers_org_created', 'drivers', ['organization_id', 'created_at', 'id'], unique=False)
     op.create_table('loads',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('load_number', sa.String(length=30), nullable=False),
@@ -191,8 +192,9 @@ def upgrade() -> None:
     sa.UniqueConstraint('organization_id', 'id', name=op.f('uq_loads_organization_id_id')),
     sa.UniqueConstraint('organization_id', 'load_number', name=op.f('uq_loads_organization_id_load_number'))
     )
-    op.create_index(op.f('ix_loads_organization_id'), 'loads', ['organization_id'], unique=False)
-    op.create_index(op.f('ix_loads_status'), 'loads', ['status'], unique=False)
+    op.create_index('ix_loads_org_created', 'loads', ['organization_id', 'created_at', 'id'], unique=False)
+    op.create_index('ix_loads_org_customer', 'loads', ['organization_id', 'customer_id'], unique=False)
+    op.create_index('ix_loads_org_status', 'loads', ['organization_id', 'status'], unique=False)
     op.create_table('dispatch_assignments',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('load_id', sa.Uuid(), nullable=False),
@@ -212,7 +214,9 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_dispatch_assignments')),
     sa.UniqueConstraint('organization_id', 'id', name=op.f('uq_dispatch_assignments_organization_id_id'))
     )
-    op.create_index(op.f('ix_dispatch_assignments_organization_id'), 'dispatch_assignments', ['organization_id'], unique=False)
+    op.create_index('ix_assign_org_driver', 'dispatch_assignments', ['organization_id', 'driver_id'], unique=False)
+    op.create_index('ix_assign_org_trailer', 'dispatch_assignments', ['organization_id', 'trailer_id'], unique=False)
+    op.create_index('ix_assign_org_vehicle', 'dispatch_assignments', ['organization_id', 'vehicle_id'], unique=False)
     op.create_index('uq_assignment_one_active_per_load', 'dispatch_assignments', ['load_id'], unique=True, postgresql_where=sa.text("status = 'active'"))
     op.create_table('documents',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
@@ -231,7 +235,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_documents')),
     sa.UniqueConstraint('organization_id', 'id', name=op.f('uq_documents_organization_id_id'))
     )
-    op.create_index(op.f('ix_documents_organization_id'), 'documents', ['organization_id'], unique=False)
+    op.create_index('ix_documents_org_load', 'documents', ['organization_id', 'load_id'], unique=False)
     op.create_table('invoices',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('invoice_number', sa.String(length=30), nullable=False),
@@ -253,7 +257,9 @@ def upgrade() -> None:
     sa.UniqueConstraint('organization_id', 'id', name=op.f('uq_invoices_organization_id_id')),
     sa.UniqueConstraint('organization_id', 'invoice_number', name=op.f('uq_invoices_organization_id_invoice_number'))
     )
-    op.create_index(op.f('ix_invoices_organization_id'), 'invoices', ['organization_id'], unique=False)
+    op.create_index('ix_invoices_org_created', 'invoices', ['organization_id', 'created_at', 'id'], unique=False)
+    op.create_index('ix_invoices_org_customer', 'invoices', ['organization_id', 'customer_id'], unique=False)
+    op.create_index('ix_invoices_org_status_due', 'invoices', ['organization_id', 'status', 'due_date'], unique=False)
     op.create_index('uq_invoice_one_live_per_load', 'invoices', ['load_id'], unique=True, postgresql_where=sa.text("status <> 'void'"))
     op.create_table('load_status_events',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
@@ -268,7 +274,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], name=op.f('fk_load_status_events_organization_id'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_load_status_events'))
     )
-    op.create_index(op.f('ix_load_status_events_organization_id'), 'load_status_events', ['organization_id'], unique=False)
+    op.create_index('ix_load_status_events_load', 'load_status_events', ['organization_id', 'load_id'], unique=False)
     op.create_table('load_stops',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('load_id', sa.Uuid(), nullable=False),
@@ -292,7 +298,6 @@ def upgrade() -> None:
     sa.UniqueConstraint('load_id', 'seq', name=op.f('uq_load_stops_load_id_seq')),
     sa.UniqueConstraint('organization_id', 'id', name=op.f('uq_load_stops_organization_id_id'))
     )
-    op.create_index(op.f('ix_load_stops_organization_id'), 'load_stops', ['organization_id'], unique=False)
     op.create_table('invoice_lines',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('invoice_id', sa.Uuid(), nullable=False),
@@ -305,7 +310,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], name=op.f('fk_invoice_lines_organization_id'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_invoice_lines'))
     )
-    op.create_index(op.f('ix_invoice_lines_organization_id'), 'invoice_lines', ['organization_id'], unique=False)
+    op.create_index('ix_invoice_lines_org_invoice', 'invoice_lines', ['organization_id', 'invoice_id'], unique=False)
     op.create_table('payments',
     sa.Column('organization_id', sa.Uuid(), nullable=False),
     sa.Column('invoice_id', sa.Uuid(), nullable=False),
@@ -321,44 +326,49 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], name=op.f('fk_payments_organization_id'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_payments'))
     )
-    op.create_index(op.f('ix_payments_organization_id'), 'payments', ['organization_id'], unique=False)
+    op.create_index('ix_payments_org_invoice', 'payments', ['organization_id', 'invoice_id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f('ix_payments_organization_id'), table_name='payments')
+    op.drop_index('ix_payments_org_invoice', table_name='payments')
     op.drop_table('payments')
-    op.drop_index(op.f('ix_invoice_lines_organization_id'), table_name='invoice_lines')
+    op.drop_index('ix_invoice_lines_org_invoice', table_name='invoice_lines')
     op.drop_table('invoice_lines')
-    op.drop_index(op.f('ix_load_stops_organization_id'), table_name='load_stops')
     op.drop_table('load_stops')
-    op.drop_index(op.f('ix_load_status_events_organization_id'), table_name='load_status_events')
+    op.drop_index('ix_load_status_events_load', table_name='load_status_events')
     op.drop_table('load_status_events')
     op.drop_index('uq_invoice_one_live_per_load', table_name='invoices', postgresql_where=sa.text("status <> 'void'"))
-    op.drop_index(op.f('ix_invoices_organization_id'), table_name='invoices')
+    op.drop_index('ix_invoices_org_status_due', table_name='invoices')
+    op.drop_index('ix_invoices_org_customer', table_name='invoices')
+    op.drop_index('ix_invoices_org_created', table_name='invoices')
     op.drop_table('invoices')
-    op.drop_index(op.f('ix_documents_organization_id'), table_name='documents')
+    op.drop_index('ix_documents_org_load', table_name='documents')
     op.drop_table('documents')
     op.drop_index('uq_assignment_one_active_per_load', table_name='dispatch_assignments', postgresql_where=sa.text("status = 'active'"))
-    op.drop_index(op.f('ix_dispatch_assignments_organization_id'), table_name='dispatch_assignments')
+    op.drop_index('ix_assign_org_vehicle', table_name='dispatch_assignments')
+    op.drop_index('ix_assign_org_trailer', table_name='dispatch_assignments')
+    op.drop_index('ix_assign_org_driver', table_name='dispatch_assignments')
     op.drop_table('dispatch_assignments')
-    op.drop_index(op.f('ix_loads_status'), table_name='loads')
-    op.drop_index(op.f('ix_loads_organization_id'), table_name='loads')
+    op.drop_index('ix_loads_org_status', table_name='loads')
+    op.drop_index('ix_loads_org_customer', table_name='loads')
+    op.drop_index('ix_loads_org_created', table_name='loads')
     op.drop_table('loads')
-    op.drop_index(op.f('ix_drivers_organization_id'), table_name='drivers')
+    op.drop_index('ix_drivers_org_created', table_name='drivers')
     op.drop_table('drivers')
-    op.drop_index(op.f('ix_vehicles_organization_id'), table_name='vehicles')
+    op.drop_index('ix_vehicles_org_created', table_name='vehicles')
     op.drop_table('vehicles')
-    op.drop_index(op.f('ix_trailers_organization_id'), table_name='trailers')
+    op.drop_index('ix_trailers_org_created', table_name='trailers')
     op.drop_table('trailers')
     op.drop_index(op.f('ix_organization_memberships_user_id'), table_name='organization_memberships')
-    op.drop_index(op.f('ix_organization_memberships_organization_id'), table_name='organization_memberships')
     op.drop_table('organization_memberships')
+    op.drop_index(op.f('ix_idempotency_keys_created_at'), table_name='idempotency_keys')
     op.drop_table('idempotency_keys')
-    op.drop_index(op.f('ix_customers_organization_id'), table_name='customers')
+    op.drop_index('ix_customers_org_created', table_name='customers')
     op.drop_table('customers')
-    op.drop_index(op.f('ix_audit_logs_organization_id'), table_name='audit_logs')
+    op.drop_index('ix_audit_logs_org_entity', table_name='audit_logs')
+    op.drop_index('ix_audit_logs_org_created', table_name='audit_logs')
     op.drop_table('audit_logs')
     op.drop_table('users')
     op.drop_table('organizations')

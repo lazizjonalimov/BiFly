@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.audit import audit
 from app.core.config import get_settings
 from app.core.deps import Principal, get_db, get_or_404, require
-from app.core.errors import AppError, Invalid
+from app.core.errors import AppError, Invalid, NotFound
 from app.core.storage import get_storage, make_key
 from app.modules.documents.models import Document
 from app.modules.loads.models import Load
@@ -76,7 +76,10 @@ def list_documents(load_id: uuid.UUID, p: Principal = Depends(require("documents
 @router.get("/documents/{doc_id}/download")
 def download(doc_id: uuid.UUID, p: Principal = Depends(require("documents:read")), db=Depends(get_db)):
     doc = get_or_404(db, Document, doc_id, "Document")
-    data = get_storage().get(doc.storage_key)
+    try:
+        data = get_storage().get(doc.storage_key)
+    except FileNotFoundError as e:
+        raise NotFound("The stored file for this document is missing") from e
     return Response(data, media_type=doc.content_type, headers={
         "Content-Disposition": f'attachment; filename="{doc.filename}"',
         "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})

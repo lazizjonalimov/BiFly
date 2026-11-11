@@ -1,6 +1,7 @@
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +9,7 @@ from sqlalchemy import text
 
 from app.api import reports
 from app.core.config import get_settings
-from app.core.db import new_session
+from app.core.db import assert_restricted_role, get_engine, new_session
 from app.core.errors import install_error_handlers
 from app.modules.customers.router import router as customers_router
 from app.modules.dispatch.driver_router import router as driver_router
@@ -24,10 +25,18 @@ from app.modules.organizations.router import router as org_router
 log = logging.getLogger("tms.access")
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Fail closed: never serve requests through a role that bypasses tenant isolation.
+    assert_restricted_role(get_engine())
+    yield
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    app = FastAPI(title="Carrier TMS API", version="0.1.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
+    app = FastAPI(title="Carrier TMS API", version="0.1.0", docs_url="/api/docs", openapi_url="/api/openapi.json",
+                  lifespan=lifespan)
 
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"],
                        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],

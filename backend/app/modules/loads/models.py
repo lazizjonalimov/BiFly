@@ -5,8 +5,8 @@ from decimal import Decimal
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
-    ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     Numeric,
     String,
@@ -17,18 +17,17 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
-from app.core.db import Base, IdMixin, TimestampMixin
+from app.core.db import Base, IdMixin, TenantScoped, TimestampMixin
 from app.modules.fleet.models import EQUIPMENT
 
 LOAD_STATUSES = "('pending','assigned','dispatched','in_transit','delivered','completed','invoiced','paid','cancelled')"
 
 
-class Load(Base, IdMixin, TimestampMixin):
+class Load(Base, IdMixin, TenantScoped, TimestampMixin):
     __tablename__ = "loads"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     load_number: Mapped[str] = mapped_column(String(30))
     customer_id: Mapped[uuid.UUID] = mapped_column(Uuid)
-    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", index=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending")
     reference: Mapped[str | None] = mapped_column(String(80))
     commodity: Mapped[str | None] = mapped_column(String(200))
     equipment_type: Mapped[str] = mapped_column(String(20), default="dry_van", server_default="dry_van")
@@ -39,6 +38,10 @@ class Load(Base, IdMixin, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("organization_id", "id"),
         UniqueConstraint("organization_id", "load_number"),
+        # Keyset pagination, status filters/board, and the customer FK.
+        Index("ix_loads_org_created", "organization_id", "created_at", "id"),
+        Index("ix_loads_org_status", "organization_id", "status"),
+        Index("ix_loads_org_customer", "organization_id", "customer_id"),
         ForeignKeyConstraint(["organization_id", "customer_id"], ["customers.organization_id", "customers.id"],
                              name="fk_loads_customer"),
         CheckConstraint(f"status IN {LOAD_STATUSES}", name="status_valid"),
@@ -47,9 +50,8 @@ class Load(Base, IdMixin, TimestampMixin):
     )
 
 
-class LoadStop(Base, IdMixin):
+class LoadStop(Base, IdMixin, TenantScoped):
     __tablename__ = "load_stops"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     load_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     seq: Mapped[int] = mapped_column(Integer)
     type: Mapped[str] = mapped_column(String(10))
@@ -72,10 +74,9 @@ class LoadStop(Base, IdMixin):
     )
 
 
-class LoadStatusEvent(Base, IdMixin):
+class LoadStatusEvent(Base, IdMixin, TenantScoped):
     """Append-only history of load status changes (no UPDATE/DELETE grant)."""
     __tablename__ = "load_status_events"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     load_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     from_status: Mapped[str | None] = mapped_column(String(20))
     to_status: Mapped[str] = mapped_column(String(20))
@@ -85,4 +86,5 @@ class LoadStatusEvent(Base, IdMixin):
     __table_args__ = (
         ForeignKeyConstraint(["organization_id", "load_id"], ["loads.organization_id", "loads.id"],
                              name="fk_load_status_events_load", ondelete="CASCADE"),
+        Index("ix_load_status_events_load", "organization_id", "load_id"),
     )

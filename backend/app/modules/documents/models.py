@@ -4,8 +4,8 @@ from datetime import datetime
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
-    ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -14,13 +14,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
-from app.core.db import Base, IdMixin
+from app.core.db import Base, IdMixin, TenantScoped
 
 
-class Document(Base, IdMixin):
+class Document(Base, IdMixin, TenantScoped):
     """Metadata only. Bytes live in object storage (S3 in production), never in the DB."""
     __tablename__ = "documents"
-    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     load_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     type: Mapped[str] = mapped_column(String(10))
     filename: Mapped[str] = mapped_column(String(255))
@@ -33,5 +32,6 @@ class Document(Base, IdMixin):
         UniqueConstraint("organization_id", "id"),
         ForeignKeyConstraint(["organization_id", "load_id"], ["loads.organization_id", "loads.id"],
                              name="fk_documents_load", ondelete="CASCADE"),
+        Index("ix_documents_org_load", "organization_id", "load_id"),
         CheckConstraint("type IN ('bol','pod','receipt','other')", name="type_valid"),
     )

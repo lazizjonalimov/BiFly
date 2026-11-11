@@ -6,6 +6,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Equipment = Literal["dry_van", "reefer", "flatbed", "step_deck", "box_truck", "tanker", "other"]
+LoadStatus = Literal["pending", "assigned", "dispatched", "in_transit", "delivered", "completed", "invoiced",
+                     "paid", "cancelled"]
 
 
 class StopIn(BaseModel):
@@ -133,3 +135,12 @@ class StopEventIn(BaseModel):
 
 class CancelIn(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
+
+
+class BoardCard(LoadSummary):
+    assignment: AssignmentOut | None = None
+
+
+class Board(BaseModel):
+    columns: dict[str, list[BoardCard]]
+    truncated: bool = Field(default=False, description="True when there are more open loads than the board shows")
