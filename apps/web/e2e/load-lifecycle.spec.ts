@@ -101,6 +101,16 @@ test("a load goes from order to paid invoice", async ({ page }) => {
     loadUrl = page.url();
   });
 
+  await test.step("the new-load form starts clean for the next load", async () => {
+    // Pages stay mounted after navigation, so a form that isn't reset would come back pre-filled and,
+    // with its idempotency key reused, would replay the previous load instead of creating a new one.
+    await page.getByRole("link", { name: "Loads", exact: true }).click();
+    await page.getByRole("button", { name: "New load" }).click();
+    await expect(field(page, "Commodity")).toHaveValue("");
+    await expect(field(page, "Customer")).toHaveValue("");
+    await expect(field(page, "City", false).first()).toHaveValue("");
+  });
+
   await test.step("assign driver, truck and trailer from the dispatch board", async () => {
     await page.getByRole("link", { name: "Dispatch board" }).click();
     await page.getByRole("button", { name: "Assign", exact: true }).click();
@@ -168,6 +178,11 @@ test("a load goes from order to paid invoice", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Team" })).toHaveCount(0);
     expect((await page.request.get("/api/tms/users")).status()).toBe(403);
+    // Dispatchers work with drivers but don't manage their qualification, so the licence number is masked.
+    await page.getByRole("link", { name: "Drivers" }).click();
+    await expect(page.getByRole("cell", { name: "IL ••••4567" })).toBeVisible();
+    await expect(page.getByText("D1234567")).toHaveCount(0);
+    await page.getByRole("link", { name: "Overview" }).click();
   });
 
   await test.step("the dispatcher replaces the temporary password", async () => {

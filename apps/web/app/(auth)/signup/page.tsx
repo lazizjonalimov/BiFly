@@ -17,7 +17,13 @@ export default function SignupPage() {
     setBusy(true);
     setError(null);
     try {
-      await session("signup", { ...form, dot_number: form.dot_number || null, mc_number: form.mc_number || null });
+      await session("signup", {
+        ...form,
+        dot_number: form.dot_number || null,
+        mc_number: form.mc_number || null,
+        // Business dates (invoice dates, "overdue", expiry checks) follow the company's local time.
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      });
       // Full reload on auth change: guarantees no cached data from a previous session survives.
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       location.assign("/");

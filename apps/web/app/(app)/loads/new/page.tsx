@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, Card, CardHeader, ErrorNote, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, newKey } from "@/lib/api";
 import { fromLocalInput, label } from "@/lib/format";
 import { useList } from "@/lib/hooks";
 import type { Customer, LoadDetail } from "@/lib/types";
@@ -15,13 +15,16 @@ const EQUIPMENT = ["dry_van", "reefer", "flatbed", "step_deck", "box_truck", "ta
 type StopForm = { key: number; type: "pickup" | "delivery"; name: string; address: string; city: string; state: string; postal_code: string; appt_start: string };
 let nextKey = 1;
 const blankStop = (type: "pickup" | "delivery"): StopForm => ({ key: nextKey++, type, name: "", address: "", city: "", state: "", postal_code: "", appt_start: "" });
+const BLANK_FORM = { customer_id: "", reference: "", commodity: "", equipment_type: "dry_van", weight_lbs: "", customer_rate: "", notes: "" };
 
 export default function NewLoadPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const customers = useList<Customer>("/customers?status=active");
-  const [form, setForm] = useState({ customer_id: "", reference: "", commodity: "", equipment_type: "dry_van", weight_lbs: "", customer_rate: "", notes: "" });
+  const [form, setForm] = useState(BLANK_FORM);
   const [stops, setStops] = useState<StopForm[]>(() => [blankStop("pickup"), blankStop("delivery")]);
+  // One key per load being entered: a double click or a retry after a dropped response can't create it twice.
+  const [idempotencyKey, setIdempotencyKey] = useState(newKey);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm({ ...form, [k]: e.target.value });
@@ -29,26 +32,35 @@ export default function NewLoadPage() {
 
   const create = useMutation({
     mutationFn: () =>
-      api.post<LoadDetail>("/loads", {
-        customer_id: form.customer_id,
-        reference: form.reference || null,
-        commodity: form.commodity || null,
-        equipment_type: form.equipment_type,
-        weight_lbs: form.weight_lbs ? Number(form.weight_lbs) : null,
-        customer_rate: form.customer_rate || "0",
-        notes: form.notes || null,
-        stops: stops.map((s) => ({
-          type: s.type,
-          name: s.name || null,
-          address: s.address || null,
-          city: s.city,
-          state: s.state || null,
-          postal_code: s.postal_code || null,
-          appt_start: fromLocalInput(s.appt_start),
-        })),
-      }),
+      api.post<LoadDetail>(
+        "/loads",
+        {
+          customer_id: form.customer_id,
+          reference: form.reference || null,
+          commodity: form.commodity || null,
+          equipment_type: form.equipment_type,
+          weight_lbs: form.weight_lbs ? Number(form.weight_lbs) : null,
+          customer_rate: form.customer_rate || "0",
+          notes: form.notes || null,
+          stops: stops.map((s) => ({
+            type: s.type,
+            name: s.name || null,
+            address: s.address || null,
+            city: s.city,
+            state: s.state || null,
+            postal_code: s.postal_code || null,
+            appt_start: fromLocalInput(s.appt_start),
+          })),
+        },
+        { idempotencyKey },
+      ),
     onSuccess: (load) => {
       qc.invalidateQueries({ queryKey: ["list"] });
+      // This page stays mounted (hidden) after navigating away, so leave it ready for the next load:
+      // a blank form and a fresh key. Reusing the key would replay this load instead of creating a new one.
+      setForm(BLANK_FORM);
+      setStops([blankStop("pickup"), blankStop("delivery")]);
+      setIdempotencyKey(newKey());
       router.push(`/loads/${load.id}`);
     },
   });

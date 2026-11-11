@@ -5,6 +5,7 @@ export type Me = {
   role: string;
   organization_id: string;
   organization_name: string;
+  timezone: string;
   permissions: string[];
 };
 
@@ -92,6 +93,7 @@ export type LoadSummary = {
   commodity: string | null;
   equipment_type: string;
   customer_rate: string;
+  currency: string;
   origin: string | null;
   destination: string | null;
   pickup_at: string | null;
@@ -128,6 +130,7 @@ export type Invoice = {
   issued_date: string;
   due_date: string;
   total: string;
+  currency: string;
   paid_total: string;
   balance: string;
   overdue: boolean;
