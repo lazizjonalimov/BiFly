@@ -1,0 +1,3 @@
+# Private business application: keep it out of search engines.
+User-agent: *
+Disallow: /
