@@ -1,0 +1,71 @@
+# Local development.
+#
+#   docker compose up -d                      -> PostgreSQL only (run the API and web app on your machine)
+#   docker compose --profile app up --build   -> the whole stack in containers
+#
+# The passwords below are development defaults. Never reuse them outside your own machine.
+name: carrier-tms
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_dev}
+      TMS_OWNER_PASSWORD: ${TMS_OWNER_PASSWORD:-tms_owner_dev}
+      TMS_APP_PASSWORD: ${TMS_APP_PASSWORD:-tms_app_dev}
+    ports:
+      - "${TMS_DB_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sh:/docker-entrypoint-initdb.d/10-tms.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tms"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: applies migrations as the schema owner, then exits. The API never gets these credentials.
+  migrate:
+    profiles: ["app"]
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      TMS_MIGRATION_DATABASE_URL: postgresql+psycopg://tms_owner:${TMS_OWNER_PASSWORD:-tms_owner_dev}@db:5432/tms
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    profiles: ["app"]
+    build: ./backend
+    environment:
+      TMS_ENV: development
+      TMS_DATABASE_URL: postgresql+psycopg://tms_app:${TMS_APP_PASSWORD:-tms_app_dev}@db:5432/tms
+      TMS_JWT_SECRET: ${TMS_JWT_SECRET:-dev-only-change-me-dev-only-change-me}
+    ports:
+      - "8000:8000"
+    volumes:
+      - documents:/data/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    profiles: ["app"]
+    build: ./apps/web
+    environment:
+      TMS_API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  documents:
