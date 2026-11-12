@@ -60,6 +60,8 @@ services:
     build: ./apps/web
     environment:
       TMS_API_URL: http://api:8000
+      # Set to "true" only to view the app inside another site's frame (hosted preview panes). Never in production.
+      TMS_ALLOW_EMBEDDING: ${TMS_ALLOW_EMBEDDING:-false}
     ports:
       - "3000:3000"
     depends_on:

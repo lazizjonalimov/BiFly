@@ -99,7 +99,13 @@ for roles that don't need it, and list it in `audit_redact`.
   not when the token expires. Changing a password bumps `token_version`, which revokes every token issued before.
 - The web portal uses a backend-for-frontend: `apps/web/app/api/session/*` exchanges credentials for a token and
   stores it in an `httpOnly`, `SameSite=Lax` cookie; `apps/web/app/api/tms/[...path]` forwards API calls with
-  that token. Page scripts cannot read it. State-changing requests are also checked for same origin.
+  that token. Page scripts cannot read it.
+- State-changing requests are accepted only from the app's own pages. The check reads the browser's
+  `Sec-Fetch-Site` header, which scripts cannot forge and which stays correct behind a proxy that rewrites
+  `Host` (older browsers fall back to an Origin comparison).
+- Pages refuse to be framed by other sites. Setting `TMS_ALLOW_EMBEDDING=true` on the web app lifts that and
+  issues the session cookie for cross-site frames, so the app can be shown in a hosted preview pane. It is a
+  preview setting and must stay off in production.
 
 Moving to Amazon Cognito later means replacing token issuing and verification (`app/core/security.py`,
 `get_principal` in `app/core/deps.py`). Roles and memberships stay in this database.

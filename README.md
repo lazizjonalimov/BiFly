@@ -67,6 +67,10 @@ Details, including the security model and how to add a module: [docs/architectur
 
 You need Docker. For development you also need Python 3.12 or newer (developed on 3.13) and Node.js 22.
 
+Run these on the computer where you want to use the app: `localhost` in the addresses below means that machine.
+If you are viewing the app through a hosted preview pane instead, see `TMS_ALLOW_EMBEDDING` under
+[Configuration](#configuration).
+
 ### Everything in containers
 
 ```bash
@@ -154,6 +158,7 @@ Web (`apps/web/.env.local`, see `apps/web/.env.example`):
 | Variable | Purpose |
 | --- | --- |
 | `TMS_API_URL` | Where the Next.js server reaches the API. Default `http://localhost:8000` |
+| `TMS_ALLOW_EMBEDDING` | `true` lets the app be shown inside another site's frame, for hosted preview panes. Off by default; never enable in production |
 
 ## Repository layout
 

@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { API_URL, SESSION_COOKIE, errorResponse, sameOrigin } from "@/lib/server";
+import { API_URL, SESSION_COOKIE, clearSession, errorResponse, sameOrigin } from "@/lib/server";
 
 // Authenticated pass-through to the TMS API: /api/tms/<path> -> <API_URL>/api/v1/<path>.
 // Attaches the bearer token from the httpOnly session cookie; the browser never sees it.
@@ -43,7 +43,7 @@ async function handle(request: Request, ctx: { params: Promise<{ path: string[] 
     const v = upstream.headers.get(h);
     if (v) out.set(h, v);
   }
-  if (upstream.status === 401) (await cookies()).delete(SESSION_COOKIE);
+  if (upstream.status === 401) clearSession(await cookies(), request);
   return new Response(upstream.status === 204 ? null : upstream.body, { status: upstream.status, headers: out });
 }
 
