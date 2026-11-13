@@ -15,6 +15,7 @@ from app.modules.loads.models import (  # noqa: F401
     LoadStop,
     TrackingEvent,
 )
+from app.modules.maintenance.models import Inspection, InspectionDefect, WorkOrder, WorkOrderLine  # noqa: F401
 from app.modules.organizations.models import (  # noqa: F401
     Account,
     AuditLog,

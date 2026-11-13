@@ -159,6 +159,27 @@ and equipment until it delivers, however late it is running.
 Assigning locks the driver, truck and trailer rows in a fixed order before checking, so two dispatchers
 booking the same driver at the same moment cannot both succeed.
 
+## Maintenance
+
+A unit is off the road when its status is `in_maintenance` or `out_of_service`; dispatch only ever asks
+whether it is `active`, so it never needs to know why. Two things take a unit off the road:
+
+- a **work order** opened (or later marked) with `out_of_service`, which moves an active unit to
+  `in_maintenance`;
+- an **inspection** with an out-of-service result, which moves it to `out_of_service` (that outranks "in
+  the shop", and a work order never softens it).
+
+It goes back only when nothing that took it off is still open: no open work order with `out_of_service`,
+and every out-of-service defect it has been cited for linked to a **completed** work order. One function
+(`maintenance/service.py: return_blockers`) decides this, and both "Return to service" and editing the
+unit's status go through it, so there is no side door. Completing a work order deliberately does not return
+the unit by itself: someone signs it off.
+
+Work orders are numbered per company (`WO-1001`), carry a version like loads, and are cancelled rather than
+deleted. Their cost lines can change only while the work order is open; the total is recomputed under a row
+lock on the work order. Inspections are a record: insert-only, apart from linking a defect to the work
+order raised for it. A passed annual inspection moves the unit's inspection date a year on.
+
 ## Money
 
 - `NUMERIC(12,2)` in the database, `Decimal` in Python, a string with two decimals in JSON.
@@ -190,8 +211,8 @@ See [decision 0004](decisions/0004-api-contract.md).
 - **Lists**: `{"items", "page": {"next_cursor", "has_more", "total_count"}, "meta"}`. Sorting, filtering
   and paging run in the database. Sort keys and filters are allowlisted per endpoint; unknown ones are
   rejected.
-- **Idempotency**: creating loads, assignments, invoices and payments, and issuing an invoice, accept an
-  `Idempotency-Key`. A repeat returns the stored response; the same key with a different request is refused.
+- **Idempotency**: creating loads, assignments, invoices, payments, work orders and inspections, and issuing
+  an invoice, accept an `Idempotency-Key`. A repeat returns the stored response; the same key with a different request is refused.
 - **Dates**: instants are UTC; calendar dates (due dates, expirations, "today") are the company's local
   date, from `Principal.today()`, never the server's.
 - **Correlation**: `X-Request-ID` is accepted or generated, echoed, logged, stored on audit entries and
@@ -209,7 +230,7 @@ See [decision 0004](decisions/0004-api-contract.md).
 | "Picked up" as its own state | Folded into `in_transit` | [Decision 0002](decisions/0002-load-lifecycle.md) |
 | Shared drivers and equipment across an owner's companies | Independent copies per company | [Decision 0001](decisions/0001-multi-company-profile.md) |
 | Async report jobs | Reports run in the request, with CSV export | Jobs when reports get heavy |
-| Maintenance, expenses, fuel, settlements | Not built yet | [Roadmap](roadmap.md) |
+| Expenses, fuel, settlements | Not built yet | [Roadmap](roadmap.md) |
 
 ## Operating notes
 

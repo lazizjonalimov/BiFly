@@ -113,6 +113,8 @@ class ChargePatch(BaseModel):
 class ChargeOut(ChargeIn):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
+    quantity: MoneyOut  # always two decimal places, however it was sent
+    rate: MoneyOut
     amount: MoneyOut
 
 

@@ -34,6 +34,12 @@ export function formatDay(iso: string | null | undefined, timeZone: string): str
   return formatter(`d:${timeZone}`, { timeZone, month: "short", day: "numeric", year: "numeric" }).format(date);
 }
 
+/** Today's date ("2026-03-10") on the company's calendar, which may not be the browser's. */
+export function todayIn(timeZone: string, now: Date = new Date()): string {
+  const parts = Object.fromEntries(formatter(`today:${timeZone}`, { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now).map((p) => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
 /** "Mar 10, 2026" for a calendar date. No time zone is involved. */
 export function formatDate(date: string | null | undefined): string {
   if (!date) return "—";

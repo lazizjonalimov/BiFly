@@ -13,8 +13,8 @@ this repository. The web column is the screens; the API column is the rules behi
 | 6 | Loads | Done | Done: list, four-step booking wizard with drafts, load page with route, freight and charges, documents, activity, every lifecycle action, conflict-safe editing |
 | 7 | Dispatch board and assignment | Done | Done: live board with counts, views and saved views, assignment panel with eligibility and reasons, reassign and unassign |
 | 8 | Documents | Done | Done: documents center with filters, uploads on loads, drivers, equipment and customers, POD review through the load, compliance review |
-| 9 | Safety and compliance | Done: status, expirations queue, blocking. Inspections not started | Done: safety page with summary, expirations queue and documents to review. Inspections not started |
-| 10 | Fleet and maintenance | Not started (work orders, out-of-service flow) | Not started |
+| 9 | Safety and compliance | Done: status, expirations queue, blocking, inspections with defects | Done: safety page with summary, expirations queue and documents to review; inspections (list, record, detail) |
+| 10 | Fleet and maintenance | Done: work orders with costs and lifecycle, out-of-service and return to service, summary, dashboard alerts, search, attachments | Done: maintenance page with summary, work orders and inspections, work order page with costs and documents, unit Maintenance tab, return to service |
 | 11 | Finance | Done: invoices, payments, aging. Not started: expenses, fuel, driver settlements | Not started |
 | 12 | Reports and administration | Done: dashboard, exceptions, search, four reports, CSV, audit log, role matrix | Done: dashboard, companies, team, terminals. Not started: company settings, role matrix, audit log, reports, search |
 
@@ -25,15 +25,16 @@ this repository. The web column is the screens; the API column is the rules behi
 - **Load lifecycle.** Twelve states, one transition function, immutable history, version checks.
 - **Dispatch.** Eligibility with reasons, overlap detection, concurrency-safe assignment, reassignment.
 - **Finance.** Draft, issue, void; payments with allocations and reversal; receivables aging.
+- **Maintenance.** Work orders with costs, start, complete and cancel; inspections with defects; units kept
+  off the road until nothing that took them off is still open.
 - **Platform.** Row-level security on every table, role permissions, audit log, idempotency, error and
   list contracts, encrypted licence numbers.
 
 ## Next
 
 1. **Finance**: invoices and payments screens, receivables.
-2. **Reports and administration**: reports with export, company settings, role matrix, audit log.
-3. **Maintenance**: work orders, inspections, out-of-service and return to service.
-4. **Finance, part two**: expenses, fuel, driver settlements.
+2. **Finance, part two**: expenses, fuel, driver settlements.
+3. **Reports and administration**: reports with export, company settings, role matrix, audit log.
 
 ## Deferred by decision
 

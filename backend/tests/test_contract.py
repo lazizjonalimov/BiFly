@@ -111,3 +111,10 @@ def test_openapi_document_describes_the_error_shape(client):
     responses = spec["paths"]["/api/v1/loads"]["post"]["responses"]
     assert responses["422"]["content"]["application/json"]["schema"]["$ref"].endswith("/ErrorResponse")
     assert "ErrorResponse" in spec["components"]["schemas"]
+
+
+def test_every_schema_in_the_contract_has_its_own_name(client):
+    # Two modules defining a model with the same name make FastAPI fall back to module-path names
+    # ("app__modules__x__schemas__LineOut"), which silently renames a type the web app depends on.
+    names = client.get("/api/openapi.json").json()["components"]["schemas"]
+    assert [n for n in names if "__" in n] == []

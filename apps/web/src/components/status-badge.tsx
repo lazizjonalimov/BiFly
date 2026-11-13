@@ -20,11 +20,14 @@ const TONES: Record<string, BadgeVariant> = {
   recorded: "success", reversed: "neutral",
   // documents
   pending: "warning", approved: "success", rejected: "danger", not_required: "neutral",
+  // maintenance
+  open: "info", in_progress: "warning", pass: "success", defects: "warning",
 };
 
 const LABELS: Record<string, string> = {
   ok: "Compliant", expiring: "Expiring soon", incomplete: "Dates missing", pod_review: "POD review", not_required: "No review needed",
   in_maintenance: "In the shop", at_pickup: "At pickup", at_delivery: "At delivery", owner_operator: "Owner-operator",
+  pass: "Passed", defects: "Defects found",
 };
 
 export function statusLabel(status: string): string {

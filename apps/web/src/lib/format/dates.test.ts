@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatDay, fromLocalInput, relativeDays, timeZoneLabel, toLocalInput } from "@/lib/format/dates";
+import { formatDate, formatDay, fromLocalInput, relativeDays, timeZoneLabel, toLocalInput, todayIn } from "@/lib/format/dates";
 
 describe("dates", () => {
   it("shows a calendar date exactly as written, whatever the time zone", () => {
@@ -7,6 +7,13 @@ describe("dates", () => {
     expect(formatDate("2026-12-31")).toBe("Dec 31, 2026");
     expect(formatDate(null)).toBe("—");
     expect(formatDate("10/03/2026")).toBe("—");
+  });
+
+  it("knows what day it is on the company's calendar", () => {
+    const lateEvening = new Date("2026-03-11T03:30:00Z");
+    expect(todayIn("America/Chicago", lateEvening)).toBe("2026-03-10");
+    expect(todayIn("UTC", lateEvening)).toBe("2026-03-11");
+    expect(todayIn("Asia/Tokyo", new Date("2026-12-31T15:30:00Z"))).toBe("2027-01-01");
   });
 
   it("shows an instant in the company's time zone, not the browser's", () => {

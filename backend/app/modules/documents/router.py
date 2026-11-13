@@ -34,6 +34,7 @@ from app.modules.equipment.models import Trailer, Vehicle
 from app.modules.finance.models import Invoice
 from app.modules.loads import service as loads
 from app.modules.loads.models import Load
+from app.modules.maintenance.models import WorkOrder
 from app.modules.organizations.models import User
 from app.modules.safety.rules import WARN_DAYS
 
@@ -41,7 +42,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 DocumentType = Literal["bol", "pod", "rate_confirmation", "receipt", "license", "medical", "insurance",
                        "registration", "inspection", "maintenance", "invoice", "other"]
-EntityType = Literal["load", "driver", "vehicle", "trailer", "customer", "invoice"]
+EntityType = Literal["load", "driver", "vehicle", "trailer", "customer", "invoice", "work_order"]
 
 # What a document can be attached to: the record, the permission needed to see that record, its display name.
 ENTITIES = {
@@ -51,6 +52,7 @@ ENTITIES = {
     "trailer": (Trailer, "equipment.read", lambda x: f"Trailer {x.unit_number}"),
     "customer": (Customer, "customers.read", lambda x: x.name),
     "invoice": (Invoice, "invoices.read", lambda x: x.invoice_number or "Draft invoice"),
+    "work_order": (WorkOrder, "maintenance.read", lambda x: f"Work order {x.number}"),
 }
 # Scans of personal identity documents: only roles that may see the numbers on them may see the scans.
 SENSITIVE = ("license", "medical")

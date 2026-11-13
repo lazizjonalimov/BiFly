@@ -12,6 +12,7 @@ from app.core.errors import Conflict, Invalid
 from app.modules.dispatch.eligibility import OtherLoad, current_loads
 from app.modules.equipment.models import Trailer, Vehicle
 from app.modules.loads.schemas import EquipmentType
+from app.modules.maintenance import service as maintenance
 from app.modules.organizations.models import Terminal
 from app.modules.safety.rules import Compliance, summarize, unit_issues
 
@@ -123,6 +124,9 @@ def _guards(kind: Literal["vehicle", "trailer"], what: str):
         ensure_exists(db, Terminal, data.get("terminal_id"), "terminal_id", "Terminal")
         if unit is not None and data.get("status") == "retired" and unit.status != "retired":
             before_delete(db, p, unit)
+        if unit is not None and data.get("status") == "active" and unit.status in maintenance.OFF_ROAD:
+            # Back on the road only when the work orders and defects that took it off are dealt with.
+            maintenance.return_blockers(db, kind, unit.id)
 
     def before_delete(db: Session, p: Principal, unit) -> None:
         busy = current_loads(db, kind, [unit.id]).get(unit.id)

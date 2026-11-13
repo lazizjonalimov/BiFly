@@ -202,7 +202,8 @@ def child_router(
     def list_(parent_id: uuid.UUID, p: Principal = Depends(require(read_perm)), db: Session = Depends(get_db)):
         _parent(db, parent_id)
         ordering = order_by if order_by is not None else model.created_at
-        return list(db.scalars(select(model).where(fk == parent_id).order_by(ordering, model.id)))
+        columns = ordering if isinstance(ordering, tuple | list) else (ordering,)
+        return list(db.scalars(select(model).where(fk == parent_id).order_by(*columns, model.id)))
 
     @r.post("", response_model=read_schema, status_code=201, summary=f"Add a {label}")
     def create_(parent_id: uuid.UUID, body: create_schema, p: Principal = Depends(require(write_perm)),

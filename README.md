@@ -4,10 +4,10 @@ A web-based transportation management system (TMS) for trucking companies, built
 from day one. One owner profile can run **up to ten companies**, each with its own books, and switch between
 them in one click.
 
-> **Status.** The API covers everything in the table below and is fully tested. The web application is
-> being rebuilt on top of it, one area at a time: sign-in, the company switcher, company management and the
-> dashboard are in; the directory, loads, dispatch and finance screens follow. A screen appears in the app
-> when it is built, never as a placeholder. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
+> **Status.** The API covers everything in the table below and is fully tested. The web application has
+> screens for sign-in and companies, the dashboard, the directory, loads, dispatch, documents, safety and
+> maintenance; finance, reports and administration screens follow. A screen appears in the app when it is
+> built, never as a placeholder. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ## What the API does today
 
@@ -20,11 +20,12 @@ them in one click.
 | Dispatch | Board with server-side filters, sorting and paging, summary counts, saved views, eligibility with reason codes, schedule-overlap checks, safe assignment under concurrency, reassignment history |
 | Documents | Upload by intent, upload, complete (ready for S3 presigned URLs), content checks, links to any record, review, role-restricted licence and medical scans |
 | Safety | Compliance status on every driver and unit, expirations queue, blocking of expired drivers and equipment at assignment and at dispatch |
+| Maintenance | Work orders with parts and labour costs, start, complete and cancel; inspections with defects; out-of-service units kept off the dispatch board until returned to service, which is refused while the repair is open |
 | Finance | Draft invoices built from completed loads, gapless numbering at issue, immutable issued invoices, void, payments with allocations, unapplied money, reversal, receivables aging |
 | Insight | Role-aware dashboard, exceptions list, global search, revenue, driver, truck and aging reports with CSV export |
 | Driver access | A driver sees and updates only the loads they are hauling, and can add the proof of delivery |
 
-Not built yet: maintenance work orders, expenses and fuel, driver settlements, the driver mobile app, the
+Not built yet: expenses and fuel, driver settlements, the driver mobile app, the
 customer portal, maps, ELD, notifications, and the AWS infrastructure.
 
 ## Architecture in one minute

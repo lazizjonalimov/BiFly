@@ -1168,6 +1168,201 @@ export interface paths {
         patch: operations["update__api_v1_loads__parent_id__items__item_id__patch"];
         trace?: never;
     };
+    "/api/v1/maintenance/inspections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Inspections */
+        get: operations["list_inspections_api_v1_maintenance_inspections_get"];
+        put?: never;
+        /**
+         * Record Inspection
+         * @description Record an inspection. An out-of-service result takes the unit off the road; a passed annual inspection
+         *     moves the unit's inspection date a year on.
+         */
+        post: operations["record_inspection_api_v1_maintenance_inspections_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance/inspections/{inspection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Inspection */
+        get: operations["get_inspection_api_v1_maintenance_inspections__inspection_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance/inspections/{inspection_id}/defects/{defect_id}/work-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Raise Work Order
+         * @description Open a work order to repair a defect. An out-of-service defect makes it urgent and keeps the unit off the road.
+         */
+        post: operations["raise_work_order_api_v1_maintenance_inspections__inspection_id__defects__defect_id__work_order_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance/return-to-service": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Return To Service
+         * @description Put a unit back on the road. Refused while an out-of-service work order is open or an out-of-service
+         *     defect hasn't been repaired.
+         */
+        post: operations["return_to_service_api_v1_maintenance_return_to_service_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Summary
+         * @description Open and urgent work orders, what is overdue, units off the road and this month's spend.
+         */
+        get: operations["get_summary_api_v1_maintenance_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance/work-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Work Orders */
+        get: operations["list_work_orders_api_v1_maintenance_work_orders_get"];
+        put?: never;
+        /**
+         * Create Work Order
+         * @description Open a work order. With `out_of_service`, an active unit goes to "in maintenance" and can't be dispatched.
+         */
+        post: operations["create_work_order_api_v1_maintenance_work_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance/work-orders/{parent_id}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a work order's cost lines */
+        get: operations["list__api_v1_maintenance_work_orders__parent_id__lines_get"];
+        put?: never;
+        /** Add a cost line */
+        post: operations["create__api_v1_maintenance_work_orders__parent_id__lines_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance/work-orders/{parent_id}/lines/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a cost line */
+        delete: operations["delete__api_v1_maintenance_work_orders__parent_id__lines__item_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update a cost line */
+        patch: operations["update__api_v1_maintenance_work_orders__parent_id__lines__item_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/maintenance/work-orders/{work_order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Work Order */
+        get: operations["get_work_order_api_v1_maintenance_work_orders__work_order_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Work Order */
+        patch: operations["update_work_order_api_v1_maintenance_work_orders__work_order_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/maintenance/work-orders/{work_order_id}/transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transition Work Order
+         * @description Start, complete or cancel. Completing doesn't put the unit back on the road: return it to service.
+         */
+        post: operations["transition_work_order_api_v1_maintenance_work_orders__work_order_id__transitions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/members": {
         parameters: {
             query?: never;
@@ -2027,15 +2222,9 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /**
-             * Quantity
-             * @default 1
-             */
+            /** Quantity */
             quantity: string;
-            /**
-             * Rate
-             * @description Per unit. Negative for a deduction
-             */
+            /** Rate */
             rate: string;
             /**
              * Type
@@ -2232,6 +2421,53 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** CostLineIn */
+        CostLineIn: {
+            /** Description */
+            description: string;
+            /**
+             * Kind
+             * @default part
+             * @enum {string}
+             */
+            kind: "labor" | "part" | "other";
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number | string;
+            /** Unit Cost */
+            unit_cost: number | string;
+        };
+        /** CostLineOut */
+        CostLineOut: {
+            /** Amount */
+            amount: string;
+            /** Description */
+            description: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Quantity */
+            quantity: string;
+            /** Unit Cost */
+            unit_cost: string;
+        };
+        /** CostLinePatch */
+        CostLinePatch: {
+            /** Description */
+            description?: string | null;
+            /** Kind */
+            kind?: ("labor" | "part" | "other") | null;
+            /** Quantity */
+            quantity?: number | string | null;
+            /** Unit Cost */
+            unit_cost?: number | string | null;
+        };
         /** CustomerCreate */
         CustomerCreate: {
             /** Billing Address */
@@ -2406,6 +2642,53 @@ export interface components {
              * Format: date
              */
             today: string;
+        };
+        /** DefectIn */
+        DefectIn: {
+            /** Description */
+            description?: string | null;
+            /** Item */
+            item: string;
+            /**
+             * Severity
+             * @default minor
+             * @enum {string}
+             */
+            severity: "minor" | "major" | "out_of_service";
+        };
+        /** DefectOut */
+        DefectOut: {
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Item */
+            item: string;
+            /** Severity */
+            severity: string;
+            work_order: components["schemas"]["WorkOrderRef"] | null;
+        };
+        /** DefectSource */
+        DefectSource: {
+            /**
+             * Inspected On
+             * Format: date
+             */
+            inspected_on: string;
+            /**
+             * Inspection Id
+             * Format: uuid
+             */
+            inspection_id: string;
+            /** Inspection Kind */
+            inspection_kind: string;
+            /** Item */
+            item: string;
+            /** Severity */
+            severity: string;
         };
         /** DocumentOut */
         DocumentOut: {
@@ -2835,6 +3118,86 @@ export interface components {
             /** Trucks Unavailable */
             trucks_unavailable: number;
         };
+        /** InspectionCreate */
+        InspectionCreate: {
+            /** Defects */
+            defects?: components["schemas"]["DefectIn"][];
+            /** Driver Id */
+            driver_id?: string | null;
+            /**
+             * Inspected On
+             * Format: date
+             */
+            inspected_on: string;
+            /** Inspector */
+            inspector?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "pre_trip" | "post_trip" | "annual" | "roadside" | "other";
+            /** Location */
+            location?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Odometer */
+            odometer?: number | null;
+            /** Report Number */
+            report_number?: string | null;
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "pass" | "defects" | "out_of_service";
+            /** Trailer Id */
+            trailer_id?: string | null;
+            /** Vehicle Id */
+            vehicle_id?: string | null;
+        };
+        /** InspectionOut */
+        InspectionOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Name */
+            created_by_name: string | null;
+            /** Defects */
+            defects: components["schemas"]["DefectOut"][];
+            driver: components["schemas"]["Ref"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Inspected On
+             * Format: date
+             */
+            inspected_on: string;
+            /** Inspector */
+            inspector: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "pre_trip" | "post_trip" | "annual" | "roadside" | "other";
+            /** Location */
+            location: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Odometer */
+            odometer: number | null;
+            /** Report Number */
+            report_number: string | null;
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "pass" | "defects" | "out_of_service";
+            unit: components["schemas"]["UnitRef"];
+        };
         /** InvoiceCreate */
         InvoiceCreate: {
             /**
@@ -3061,7 +3424,7 @@ export interface components {
              * Entity Type
              * @enum {string}
              */
-            entity_type: "load" | "driver" | "vehicle" | "trailer" | "customer" | "invoice";
+            entity_type: "load" | "driver" | "vehicle" | "trailer" | "customer" | "invoice" | "work_order";
         };
         /** LinkOut */
         LinkOut: {
@@ -3074,7 +3437,7 @@ export interface components {
              * Entity Type
              * @enum {string}
              */
-            entity_type: "load" | "driver" | "vehicle" | "trailer" | "customer" | "invoice";
+            entity_type: "load" | "driver" | "vehicle" | "trailer" | "customer" | "invoice" | "work_order";
             /**
              * Id
              * Format: uuid
@@ -3325,6 +3688,21 @@ export interface components {
             organization_id?: string | null;
             /** Password */
             password: string;
+        };
+        /** MaintenanceSummary */
+        MaintenanceSummary: {
+            /** Currency */
+            currency: string;
+            /** Open Work Orders */
+            open_work_orders: number;
+            /** Overdue */
+            overdue: number;
+            /** Spend This Month */
+            spend_this_month: string;
+            /** Units Out Of Service */
+            units_out_of_service: number;
+            /** Urgent Open */
+            urgent_open: number;
         };
         /** MeAccount */
         MeAccount: {
@@ -3604,6 +3982,13 @@ export interface components {
             meta: components["schemas"]["Meta"];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[InspectionOut] */
+        Page_InspectionOut_: {
+            /** Items */
+            items: components["schemas"]["InspectionOut"][];
+            meta: components["schemas"]["Meta"];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[InvoiceListItem] */
         Page_InvoiceListItem_: {
             /** Items */
@@ -3643,6 +4028,13 @@ export interface components {
         Page_VehicleRead_: {
             /** Items */
             items: components["schemas"]["VehicleRead"][];
+            meta: components["schemas"]["Meta"];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[WorkOrderListItem] */
+        Page_WorkOrderListItem_: {
+            /** Items */
+            items: components["schemas"]["WorkOrderListItem"][];
             meta: components["schemas"]["Meta"];
             page: components["schemas"]["PageInfo"];
         };
@@ -3980,6 +4372,21 @@ export interface components {
             /** Label */
             label: string;
         };
+        /** ReturnToServiceIn */
+        ReturnToServiceIn: {
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Unit Id
+             * Format: uuid
+             */
+            unit_id: string;
+            /**
+             * Unit Type
+             * @enum {string}
+             */
+            unit_type: "vehicle" | "trailer";
+        };
         /** Revenue */
         Revenue: {
             /** Currency */
@@ -4112,7 +4519,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "load" | "customer" | "driver" | "vehicle" | "trailer" | "invoice";
+            type: "load" | "customer" | "driver" | "vehicle" | "trailer" | "invoice" | "work_order";
         };
         /** SessionOut */
         SessionOut: {
@@ -4552,6 +4959,23 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** UnitRef */
+        UnitRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "vehicle" | "trailer";
+        };
         /** UploadIntentIn */
         UploadIntentIn: {
             /** Content Type */
@@ -4565,7 +4989,7 @@ export interface components {
              * Entity Type
              * @enum {string}
              */
-            entity_type: "load" | "driver" | "vehicle" | "trailer" | "customer" | "invoice";
+            entity_type: "load" | "driver" | "vehicle" | "trailer" | "customer" | "invoice" | "work_order";
             /** Expires On */
             expires_on?: string | null;
             /** Filename */
@@ -4732,6 +5156,187 @@ export interface components {
         VoidIn: {
             /** Reason */
             reason: string;
+        };
+        /** WorkOrderCreate */
+        WorkOrderCreate: {
+            /** Description */
+            description?: string | null;
+            /** Lines */
+            lines?: components["schemas"]["CostLineIn"][];
+            /** Odometer */
+            odometer?: number | null;
+            /**
+             * Out Of Service
+             * @description Keep the unit off the road until it is returned to service
+             * @default false
+             */
+            out_of_service: boolean;
+            /**
+             * Priority
+             * @default normal
+             * @enum {string}
+             */
+            priority: "low" | "normal" | "high" | "urgent";
+            /** Scheduled For */
+            scheduled_for?: string | null;
+            /** Title */
+            title: string;
+            /** Trailer Id */
+            trailer_id?: string | null;
+            /** Vehicle Id */
+            vehicle_id?: string | null;
+            /** Vendor */
+            vendor?: string | null;
+        };
+        /** WorkOrderDetail */
+        WorkOrderDetail: {
+            /** Allowed Actions */
+            allowed_actions: string[];
+            /** Completed At */
+            completed_at: string | null;
+            /** Completed By Name */
+            completed_by_name: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Name */
+            created_by_name: string | null;
+            /** Currency */
+            currency: string;
+            /** Defects */
+            defects: components["schemas"]["DefectSource"][];
+            /** Description */
+            description: string | null;
+            /** Editable */
+            editable: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Lines */
+            lines: components["schemas"]["CostLineOut"][];
+            /** Number */
+            number: string;
+            /** Odometer */
+            odometer: number | null;
+            /** Out Of Service */
+            out_of_service: boolean;
+            /**
+             * Priority
+             * @enum {string}
+             */
+            priority: "low" | "normal" | "high" | "urgent";
+            /** Resolution */
+            resolution: string | null;
+            /** Scheduled For */
+            scheduled_for: string | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "in_progress" | "completed" | "cancelled";
+            /** Title */
+            title: string;
+            /** Total Cost */
+            total_cost: string;
+            unit: components["schemas"]["UnitRef"];
+            /** Vendor */
+            vendor: string | null;
+            /** Version */
+            version: number;
+        };
+        /** WorkOrderListItem */
+        WorkOrderListItem: {
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Out Of Service */
+            out_of_service: boolean;
+            /**
+             * Priority
+             * @enum {string}
+             */
+            priority: "low" | "normal" | "high" | "urgent";
+            /** Scheduled For */
+            scheduled_for: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "in_progress" | "completed" | "cancelled";
+            /** Title */
+            title: string;
+            /** Total Cost */
+            total_cost: string;
+            unit: components["schemas"]["UnitRef"];
+            /** Vendor */
+            vendor: string | null;
+            /** Version */
+            version: number;
+        };
+        /** WorkOrderRef */
+        WorkOrderRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Status */
+            status: string;
+        };
+        /** WorkOrderTransition */
+        WorkOrderTransition: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "start" | "complete" | "cancel";
+            /**
+             * Notes
+             * @description What was done, or why it was cancelled
+             */
+            notes?: string | null;
+            /** Version */
+            version: number;
+        };
+        /** WorkOrderUpdate */
+        WorkOrderUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Odometer */
+            odometer?: number | null;
+            /** Out Of Service */
+            out_of_service?: boolean | null;
+            /** Priority */
+            priority?: ("low" | "normal" | "high" | "urgent") | null;
+            /** Scheduled For */
+            scheduled_for?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Vendor */
+            vendor?: string | null;
+            /** Version */
+            version: number;
         };
     };
     responses: never;
@@ -7049,7 +7654,7 @@ export interface operations {
                 q?: string | null;
                 /** @description Also return the total number of matching records */
                 count?: boolean;
-                entity_type?: ("load" | "driver" | "vehicle" | "trailer" | "customer" | "invoice") | null;
+                entity_type?: ("load" | "driver" | "vehicle" | "trailer" | "customer" | "invoice" | "work_order") | null;
                 entity_id?: string | null;
                 type?: ("bol" | "pod" | "rate_confirmation" | "receipt" | "license" | "medical" | "insurance" | "registration" | "inspection" | "maintenance" | "invoice" | "other") | null;
                 review_status?: ("not_required" | "pending" | "approved" | "rejected") | null;
@@ -10630,6 +11235,1066 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_inspections_api_v1_maintenance_inspections_get: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from the previous page */
+                cursor?: string | null;
+                limit?: number;
+                /** @description Sort key; prefix with - for descending */
+                sort?: string | null;
+                /** @description Search text */
+                q?: string | null;
+                /** @description Also return the total number of matching records */
+                count?: boolean;
+                kind?: ("pre_trip" | "post_trip" | "annual" | "roadside" | "other") | null;
+                result?: ("pass" | "defects" | "out_of_service") | null;
+                unit_type?: ("vehicle" | "trailer") | null;
+                vehicle_id?: string | null;
+                trailer_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_InspectionOut_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    record_inspection_api_v1_maintenance_inspections_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InspectionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_inspection_api_v1_maintenance_inspections__inspection_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                inspection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    raise_work_order_api_v1_maintenance_inspections__inspection_id__defects__defect_id__work_order_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                inspection_id: string;
+                defect_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    return_to_service_api_v1_maintenance_return_to_service_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReturnToServiceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitRef"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_summary_api_v1_maintenance_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceSummary"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_work_orders_api_v1_maintenance_work_orders_get: {
+        parameters: {
+            query?: {
+                /** @description Opaque cursor from the previous page */
+                cursor?: string | null;
+                limit?: number;
+                /** @description Sort key; prefix with - for descending */
+                sort?: string | null;
+                /** @description Search text */
+                q?: string | null;
+                /** @description Also return the total number of matching records */
+                count?: boolean;
+                status?: ("open" | "in_progress" | "completed" | "cancelled") | null;
+                /** @description Only work orders not yet completed or cancelled */
+                open?: boolean | null;
+                /** @description Open work orders scheduled for a day that has passed */
+                overdue?: boolean | null;
+                priority?: ("low" | "normal" | "high" | "urgent") | null;
+                unit_type?: ("vehicle" | "trailer") | null;
+                vehicle_id?: string | null;
+                trailer_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_WorkOrderListItem_"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_work_order_api_v1_maintenance_work_orders_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkOrderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list__api_v1_maintenance_work_orders__parent_id__lines_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                parent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostLineOut"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create__api_v1_maintenance_work_orders__parent_id__lines_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                parent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CostLineIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostLineOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete__api_v1_maintenance_work_orders__parent_id__lines__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                parent_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update__api_v1_maintenance_work_orders__parent_id__lines__item_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                parent_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CostLinePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostLineOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_work_order_api_v1_maintenance_work_orders__work_order_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                work_order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_work_order_api_v1_maintenance_work_orders__work_order_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                work_order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkOrderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkOrderDetail"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    transition_work_order_api_v1_maintenance_work_orders__work_order_id__transitions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                work_order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkOrderTransition"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkOrderDetail"];
                 };
             };
             /** @description Unauthorized */

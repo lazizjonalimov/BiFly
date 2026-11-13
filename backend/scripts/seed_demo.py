@@ -136,7 +136,7 @@ def main() -> int:
             {"unit_number": "103", "make": "Volvo", "model": "VNL 760", "year": 2021, "plate": "T345678",
              "plate_state": "TX", "odometer": 341050, "terminal_id": dallas["id"], "ownership": "leased", **good},
             {"unit_number": "104", "make": "Peterbilt", "model": "579", "year": 2020, "plate": "P456789",
-             "plate_state": "IL", "status": "in_maintenance", "terminal_id": chicago["id"], **good},
+             "plate_state": "IL", "odometer": 412300, "terminal_id": chicago["id"], **good},   # in the shop, below
             {"unit_number": "105", "make": "Mack", "model": "Anthem", "year": 2024, "plate": "T567890",
              "plate_state": "TX", "terminal_id": dallas["id"], "ownership": "owner_operator",
              **{**good, "inspection_expiry": date(-5)}},                                     # inspection lapsed
@@ -276,6 +276,34 @@ def main() -> int:
         load(globex, chi, atl, 6, "0", "To be confirmed", None, None, status="draft")
         cancelled = load(umbrella, mke, dal, 7, "2400.00", "Paper rolls", 40000, 1010, ref="UP-4515")
         act(cancelled, "cancel", reason="Shipper cancelled the order")
+
+        # --- maintenance ------------------------------------------------------------------------------
+        # Truck 104 is in the shop for an urgent repair, which keeps it off the dispatch board.
+        shop = post("/maintenance/work-orders", {
+            "vehicle_id": trucks[3]["id"], "title": "Turbocharger replacement", "priority": "urgent",
+            "out_of_service": True, "vendor": "Midwest Diesel", "odometer": 412300, "scheduled_for": date(1),
+            "description": "Loss of power under load. Boost leak traced to the turbo.",
+            "lines": [{"kind": "part", "description": "Turbocharger", "unit_cost": "3150.00"},
+                      {"kind": "labor", "description": "Labour", "quantity": "6", "unit_cost": "135.00"}]})
+        post(f"/maintenance/work-orders/{shop['id']}/transitions", {"action": "start", "version": shop["version"]})
+        # Truck 101 had its preventive service; trailer 5303's door seals are overdue.
+        service = post("/maintenance/work-orders", {
+            "vehicle_id": trucks[0]["id"], "title": "Preventive maintenance A", "odometer": 184200,
+            "lines": [{"kind": "part", "description": "Oil and filters", "unit_cost": "286.40"},
+                      {"kind": "labor", "description": "Labour", "quantity": "2", "unit_cost": "120.00"}]})
+        post(f"/maintenance/work-orders/{service['id']}/transitions", {
+            "action": "complete", "version": service["version"], "notes": "Oil, filters and grease. Nothing else found."})
+        post("/maintenance/work-orders", {"trailer_id": trailers[2]["id"], "title": "Replace door seals",
+                                          "scheduled_for": date(-3)})
+        # Inspections: a clean daily check, and a roadside inspection that found a lamp out.
+        post("/maintenance/inspections", {"vehicle_id": trucks[0]["id"], "driver_id": drivers[0]["id"],
+                                          "kind": "pre_trip", "inspected_on": date(-1), "result": "pass",
+                                          "odometer": 184260})
+        post("/maintenance/inspections", {
+            "trailer_id": trailers[1]["id"], "driver_id": drivers[0]["id"], "kind": "roadside",
+            "inspected_on": date(-2), "result": "defects", "location": "I-55 MM 197",
+            "inspector": "Illinois State Police", "report_number": "IL-55120",
+            "defects": [{"item": "Marker lamp out", "severity": "minor", "description": "Rear left clearance lamp"}]})
 
         # --- a second company under the same profile --------------------------------------------------
         second = post("/account/companies", {

@@ -16,6 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentsPanel } from "@/features/documents/documents-panel";
 import { UnitSheet, type Unit, type UnitKind } from "@/features/equipment/unit-sheet";
 import { RelatedLoads } from "@/features/loads/related-loads";
+import { ReturnToService } from "@/features/maintenance/parts";
+import { UnitMaintenance } from "@/features/maintenance/unit-maintenance";
 import { Availability, ComplianceAlert, ComplianceBadge, ExpiryDate } from "@/features/safety/compliance";
 import { useTerminals } from "@/hooks/use-options";
 import { api, unwrap } from "@/lib/api/client";
@@ -67,17 +69,21 @@ export function UnitDetail({ kind, id }: { kind: UnitKind; id: string }) {
         }
         description={[trailer ? statusLabel(trailer.type) : null, [unit.year, unit.make, truck?.model].filter(Boolean).join(" ") || null, unit.terminal_id ? terminals.nameOf(unit.terminal_id) : null].filter(Boolean).join(" · ")}
         actions={
-          can("equipment.manage") ? (
-            <Button onClick={() => setEditing(true)}>
-              <PencilIcon /> Edit
-            </Button>
-          ) : null
+          <>
+            <ReturnToService unit={{ type: kind === "truck" ? "vehicle" : "trailer", id: unit.id, name: `${noun} ${unit.unit_number}`, status: unit.status }} variant="outline" />
+            {can("equipment.manage") ? (
+              <Button onClick={() => setEditing(true)}>
+                <PencilIcon /> Edit
+              </Button>
+            ) : null}
+          </>
         }
       />
       <ComplianceAlert compliance={unit.compliance} subject={`${noun} ${unit.unit_number}`} />
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          {can("maintenance.read") || can("safety.read") ? <TabsTrigger value="maintenance">Maintenance</TabsTrigger> : null}
           {can("documents.read") ? <TabsTrigger value="documents">Documents</TabsTrigger> : null}
           {can("loads.read") ? <TabsTrigger value="loads">Loads</TabsTrigger> : null}
         </TabsList>
@@ -109,6 +115,13 @@ export function UnitDetail({ kind, id }: { kind: UnitKind; id: string }) {
             </CardContent>
           </Card>
         </TabsContent>
+        {can("maintenance.read") || can("safety.read") ? (
+          <TabsContent value="maintenance">
+            <Card>
+              <UnitMaintenance type={kind === "truck" ? "vehicle" : "trailer"} id={unit.id} noun={noun.toLowerCase()} />
+            </Card>
+          </TabsContent>
+        ) : null}
         {can("documents.read") ? (
           <TabsContent value="documents">
             <Card>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ContainerIcon, FileTextIcon, IdCardIcon, Loader2Icon, PackageIcon, PlusIcon, SearchIcon, TruckIcon, UsersIcon, type LucideIcon } from "lucide-react";
+import { ClipboardCheckIcon, ContainerIcon, FileTextIcon, IdCardIcon, Loader2Icon, PackageIcon, PlusIcon, SearchIcon, TruckIcon, UsersIcon, WrenchIcon, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -22,6 +22,7 @@ const KINDS: Record<Result["type"], { label: string; icon: LucideIcon }> = {
   vehicle: { label: "Trucks", icon: TruckIcon },
   trailer: { label: "Trailers", icon: ContainerIcon },
   invoice: { label: "Invoices", icon: FileTextIcon },
+  work_order: { label: "Work orders", icon: WrenchIcon },
 };
 
 /** Where each kind of search result opens. */
@@ -39,6 +40,8 @@ function resultPath(result: Result): string[] {
       return [`equipment/trucks?q=${encodeURIComponent(result.title.replace(/^Truck /, ""))}`];
     case "trailer":
       return [`equipment/trailers?q=${encodeURIComponent(result.title.replace(/^Trailer /, ""))}`];
+    case "work_order":
+      return ["maintenance", result.id];
   }
 }
 
@@ -51,6 +54,8 @@ export function useQuickCreate() {
     { label: "Driver", path: ["drivers?new=1"], icon: IdCardIcon, allowed: can("drivers.manage") },
     { label: "Truck", path: ["equipment/trucks?new=1"], icon: TruckIcon, allowed: can("equipment.manage") },
     { label: "Trailer", path: ["equipment/trailers?new=1"], icon: ContainerIcon, allowed: can("equipment.manage") },
+    { label: "Work order", path: ["maintenance?new=1"], icon: WrenchIcon, allowed: can("maintenance.manage") },
+    { label: "Inspection", path: ["maintenance/inspections?new=1"], icon: ClipboardCheckIcon, allowed: can("safety.manage") || can("maintenance.manage") },
   ].filter((item) => item.allowed);
 }
 

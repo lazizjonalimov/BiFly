@@ -21,7 +21,7 @@ import { formatBytes } from "@/lib/format/text";
 type Document = Schema<"DocumentOut">;
 
 const FILTERS = { type: "", review_status: "", entity_type: "", expiring: "" };
-const ENTITY_LABELS: Record<string, string> = { load: "Loads", driver: "Drivers", vehicle: "Trucks", trailer: "Trailers", customer: "Customers", invoice: "Invoices" };
+const ENTITY_LABELS: Record<string, string> = { load: "Loads", driver: "Drivers", vehicle: "Trucks", trailer: "Trailers", customer: "Customers", invoice: "Invoices", work_order: "Work orders" };
 
 export function linkPath(link: Document["links"][number]): string[] {
   switch (link.entity_type) {
@@ -35,6 +35,8 @@ export function linkPath(link: Document["links"][number]): string[] {
       return ["equipment/trailers", link.entity_id];
     case "customer":
       return ["customers", link.entity_id];
+    case "work_order":
+      return ["maintenance", link.entity_id];
     default:
       return ["finance/invoices", link.entity_id];
   }

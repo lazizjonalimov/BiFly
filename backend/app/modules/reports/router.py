@@ -28,6 +28,8 @@ from app.modules.finance.schemas import Receivables
 from app.modules.loads import service as loads
 from app.modules.loads.models import Load, LoadStop
 from app.modules.loads.schemas import BoardSummary
+from app.modules.maintenance import service as maintenance
+from app.modules.maintenance.models import WorkOrder
 from app.modules.organizations.models import Terminal
 from app.modules.safety.router import SafetySummary, summary_counts
 
@@ -162,6 +164,12 @@ def dashboard_exceptions(p: Principal = Depends(require("dashboard.read")), db: 
                 Document.upload_status == "uploaded", Document.review_status == "pending", Document.type != "pod"))
             add(pending, "DOCUMENTS_TO_REVIEW", "low", "Compliance documents to review",
                 "Uploaded and waiting for approval", "documents", review_status="pending")
+    if p.can("maintenance.read"):
+        shop = maintenance.summary(db, p)
+        add(shop.urgent_open, "WORK_ORDERS_URGENT", "high", "Urgent work orders",
+            "Open repairs marked urgent", "maintenance", priority="urgent", open="true")
+        add(shop.overdue, "WORK_ORDERS_OVERDUE", "medium", "Work orders past their date",
+            "Scheduled for a day that has passed and still open", "maintenance", overdue="true")
     if p.can("invoices.read"):
         owed = finance.receivables(db, p)
         add(owed.overdue_invoices, "INVOICES_OVERDUE", "high", "Overdue invoices",
@@ -176,7 +184,7 @@ def dashboard_exceptions(p: Principal = Depends(require("dashboard.read")), db: 
 
 # ---------------------------------------------------------------- search
 class SearchResult(BaseModel):
-    type: Literal["load", "customer", "driver", "vehicle", "trailer", "invoice"]
+    type: Literal["load", "customer", "driver", "vehicle", "trailer", "invoice", "work_order"]
     id: uuid.UUID
     title: str
     subtitle: str | None
@@ -217,6 +225,10 @@ def search(q: str = Query(min_length=2, max_length=100), limit: int = Query(defa
     run("invoices.read", "invoice",
         select(Invoice).where(Invoice.invoice_number.ilike(pattern)).order_by(Invoice.created_at.desc()),
         lambda x: x.invoice_number or "Draft invoice", lambda x: f"{x.total} {x.currency} · {x.status}")
+    run("maintenance.read", "work_order",
+        select(WorkOrder).where(or_(WorkOrder.number.ilike(pattern), WorkOrder.title.ilike(pattern)))
+        .order_by(WorkOrder.created_at.desc()),
+        lambda x: f"Work order {x.number}", lambda x: f"{x.title} · {x.status.replace('_', ' ')}")
     return out
 
 
