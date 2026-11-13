@@ -1,4 +1,4 @@
-import { Building2Icon, LayoutDashboardIcon, type LucideIcon } from "lucide-react";
+import { Building2Icon, LayoutDashboardIcon, UsersIcon, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -23,6 +23,10 @@ export const NAVIGATION: NavGroup[] = [
     items: [{ label: "Dashboard", path: "dashboard", icon: LayoutDashboardIcon, anyOf: ["dashboard.read"] }],
   },
   {
+    label: "Directory",
+    items: [{ label: "Customers", path: "customers", icon: UsersIcon, anyOf: ["customers.read"] }],
+  },
+  {
     label: "Administration",
     items: [{ label: "Companies", path: "settings/companies", icon: Building2Icon, accountOwner: true }],
   },
@@ -33,6 +37,7 @@ export const SEGMENT_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
   settings: "Settings",
   companies: "Companies",
+  customers: "Customers",
 };
 
 /**
@@ -40,7 +45,7 @@ export const SEGMENT_LABELS: Record<string, string> = {
  * dashboard's exceptions, search results). A resource whose screen isn't built yet has no entry, and the
  * link is simply not offered.
  */
-const RESOURCE_PATHS: Record<string, string> = {};
+const RESOURCE_PATHS: Record<string, string> = { customers: "customers" };
 
 export function resourcePath(resource: string): string | null {
   return RESOURCE_PATHS[resource] ?? null;
