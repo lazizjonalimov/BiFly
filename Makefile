@@ -1,7 +1,7 @@
 # Shortcuts for local development. Run `make help`.
 VENV := backend/.venv/bin
 
-.PHONY: help install db migrate api web seed test lint e2e stack down
+.PHONY: help install db migrate api web seed test types lint e2e stack down
 
 help: ## Show this help
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-9s %s\n", $$1, $$2}'
@@ -26,8 +26,13 @@ web: ## Run the web app with reload on http://localhost:3000
 seed: ## Create a demo company with sample data (the API must be running)
 	cd backend && .venv/bin/python scripts/seed_demo.py
 
-test: ## Run backend tests (needs `make db`)
+test: ## Run backend and web unit tests (backend needs `make db`)
 	cd backend && .venv/bin/python -m pytest
+	cd apps/web && npm test
+
+types: ## Regenerate the API contract file and the web app's types from it
+	cd backend && .venv/bin/python scripts/export_openapi.py
+	cd apps/web && npm run api:types
 
 lint: ## Lint and type-check backend and web
 	cd backend && .venv/bin/ruff check app tests alembic scripts

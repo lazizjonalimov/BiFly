@@ -51,6 +51,8 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: Lint
         run: ruff check app tests alembic scripts
+      - name: The published API contract is current
+        run: python scripts/export_openapi.py --check
       - name: Create database roles
         run: sh ../infrastructure/docker/postgres/init.sh
       - name: Migrations match the models
@@ -59,7 +61,7 @@ jobs:
         run: python -m pytest
 
   web:
-    name: Web (lint, typecheck, build)
+    name: Web (lint, types, unit tests, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -72,16 +74,19 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+      - name: Types are generated from the current API contract
+        run: npm run api:types && git diff --exit-code -- src/lib/api/schema.d.ts
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build
 
-  # Boots the real stack the way production runs it (migrations as the owner, the API as the restricted role)
-  # and drives it over HTTP with the demo script, which touches every module. The browser journeys return
-  # here when the rebuilt web application lands.
-  smoke:
-    name: API smoke test (real server)
-    needs: [backend]
+  # Boots the real stack the way production runs it (migrations as the owner, the API as the restricted
+  # role, a production build of the web app) and drives it: first over HTTP with the demo script, which
+  # touches every module, then in a real browser.
+  e2e:
+    name: End-to-end (real server, real browser)
+    needs: [backend, web]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -95,9 +100,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -105,22 +107,45 @@ jobs:
           python-version: "3.13"
           cache: pip
           cache-dependency-path: backend/requirements*.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
       - name: Database and API
+        working-directory: backend
         run: |
           sh ../infrastructure/docker/postgres/init.sh
           pip install -r requirements-dev.txt
           alembic upgrade head
           nohup uvicorn app.main:app --port 8000 > ../api.log 2>&1 &
-          for i in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:8000/healthz && break || sleep 2; done
-          curl -fsS -o /dev/null http://localhost:8000/healthz
-      - name: Build a demo account through the API
+      - name: Web app
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm run build
+          nohup npm run start > ../../web.log 2>&1 &
+      - name: Wait for the stack
+        run: |
+          for url in http://localhost:8000/healthz http://localhost:3000/login; do
+            for i in $(seq 1 30); do curl -fsS -o /dev/null "$url" && break || sleep 2; done
+            curl -fsS -o /dev/null "$url"
+          done
+      - name: Demo data builds through the API
+        working-directory: backend
         run: python scripts/seed_demo.py
-      - name: The contract is served
-        run: curl -fsS http://localhost:8000/api/openapi.json | python -c "import json, sys; print(len(json.load(sys.stdin)['paths']), 'paths')"
-      - name: Keep the API log on failure
+      - name: Browser journeys
+        working-directory: apps/web
+        run: |
+          npx playwright install --with-deps chromium
+          npm run e2e -- --trace off
+      - name: Keep logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: api-log
-          path: api.log
+          name: e2e-failure
+          path: |
+            api.log
+            web.log
+            apps/web/test-results/
           retention-days: 7

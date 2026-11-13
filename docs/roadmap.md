@@ -5,9 +5,9 @@ this repository. The web column is the screens; the API column is the rules behi
 
 | # | Step | API | Web |
 | --- | --- | --- | --- |
-| 1 | Audit and foundation | Done: [audit](implementation-audit.md), [decisions](decisions) | Rebuild in progress |
-| 2 | Design system and application shell | n/a | Not started |
-| 3 | Sign-in and company switching | Done | Not started |
+| 1 | Audit and foundation | Done: [audit](implementation-audit.md), [decisions](decisions) | Done: mandated stack, generated API types, session layer, unit and browser tests |
+| 2 | Design system and application shell | n/a | Done: theme (light and dark), components, sidebar, user menu, breadcrumbs. Table standard, search and notifications arrive with the first lists |
+| 3 | Sign-in and company switching | Done | Done: sign-up, sign-in, choose a company, switch, add with a copy, archive, restore |
 | 4 | Customers | Done | Not started |
 | 5 | Drivers and equipment | Done | Not started |
 | 6 | Loads | Done | Not started |
@@ -16,7 +16,7 @@ this repository. The web column is the screens; the API column is the rules behi
 | 9 | Safety and compliance | Done: status, expirations queue, blocking. Inspections not started | Not started |
 | 10 | Fleet and maintenance | Not started (work orders, out-of-service flow) | Not started |
 | 11 | Finance | Done: invoices, payments, aging. Not started: expenses, fuel, driver settlements | Not started |
-| 12 | Reports and administration | Done: dashboard, exceptions, search, four reports, CSV, audit log, role matrix | Not started |
+| 12 | Reports and administration | Done: dashboard, exceptions, search, four reports, CSV, audit log, role matrix | Dashboard and companies done; the rest not started |
 
 ## What "Done" covers in the API
 
@@ -30,9 +30,9 @@ this repository. The web column is the screens; the API column is the rules behi
 
 ## Next
 
-1. **Web foundation**: Next.js with shadcn/ui, TanStack Table and Query, React Hook Form and Zod, types
-   generated from the API contract, the workspace shell and company switcher.
-2. **Screens in the order above**, each with its end-to-end journey.
+1. **Directory screens**: customers, drivers, trucks, trailers, terminals, team, with the shared table
+   (server-side sorting, filters in the address bar, saved column choices) and global search.
+2. **Loads and the dispatch board**, then documents and safety, then finance and reports.
 3. **Maintenance**: work orders, inspections, out-of-service and return to service.
 4. **Finance, part two**: expenses, fuel, driver settlements.
 

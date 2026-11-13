@@ -4,10 +4,10 @@ A web-based transportation management system (TMS) for trucking companies, built
 from day one. One owner profile can run **up to ten companies**, each with its own books, and switch between
 them in one click.
 
-> **Status.** The API described below is complete for the features listed and fully tested. The web
-> application in `apps/web` is being rebuilt on top of it (new design system, company switcher, dispatch
-> board, finance screens). Until that lands, the checked-in web app predates this API and does not work
-> against it. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
+> **Status.** The API covers everything in the table below and is fully tested. The web application is
+> being rebuilt on top of it, one area at a time: sign-in, the company switcher, company management and the
+> dashboard are in; the directory, loads, dispatch and finance screens follow. A screen appears in the app
+> when it is built, never as a placeholder. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ## What the API does today
 
@@ -60,9 +60,23 @@ flowchart TB
 Details: [docs/architecture.md](docs/architecture.md). Decisions and their reasons:
 [docs/decisions](docs/decisions).
 
-## Run the API
+## Run it
 
-You need Docker, and for development Python 3.12 or newer (developed on 3.13).
+You need Docker, and for development Python 3.12 or newer (developed on 3.13) and Node.js 22.
+
+Run these on the computer where you want to use the app: `localhost` in the addresses below means that
+machine.
+
+### Everything in containers
+
+```bash
+docker compose --profile app up --build
+```
+
+Open http://localhost:3000 and choose **Create an account**. API documentation is at
+http://localhost:8000/api/docs.
+
+### For development (hot reload)
 
 Start PostgreSQL (creates both database roles and the `bifly` and `bifly_test` databases):
 
@@ -80,7 +94,13 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
-Interactive API documentation is at http://localhost:8000/api/docs.
+Start the web app in a second terminal:
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
 
 Load a demo account: two companies, loads at every stage, invoices and payments. It prints the sign-in
 details:
@@ -98,10 +118,21 @@ python scripts/seed_demo.py
 cd backend && pytest
 ```
 
-The suite runs against a real PostgreSQL (the `bifly_test` database) and connects as the restricted
+The backend suite runs against a real PostgreSQL (the `bifly_test` database) and connects as the restricted
 application role, so tenant isolation is tested exactly as it runs in production. It covers isolation at the
 API and SQL level, the load lifecycle, assignment under concurrency, documents, invoicing and payments,
 permissions for every role, and the API contract.
+
+```bash
+cd apps/web && npm run lint && npm run typecheck && npm test
+```
+
+End-to-end, in a real browser, with the API and a built web app running (first time only:
+`npx playwright install chromium`):
+
+```bash
+cd apps/web && npm run e2e
+```
 
 ## Configuration
 
@@ -120,15 +151,22 @@ Backend (`backend/.env`, see `backend/.env.example`):
 | `BIFLY_MAX_UPLOAD_BYTES` | Largest accepted upload. Default 15 MB |
 | `BIFLY_CORS_ORIGINS` | Only needed for browser clients that call the API directly |
 
+Web (`apps/web/.env.local`, see `apps/web/.env.example`):
+
+| Variable | Purpose |
+| --- | --- |
+| `BIFLY_API_URL` | Where the Next.js server reaches the API. Default `http://localhost:8000` |
+| `BIFLY_ALLOW_EMBEDDING` | `true` lets the app be shown inside another site's frame, for hosted preview panes. Off by default; never enable in production |
+
 ## Repository layout
 
 ```
-apps/web/            Next.js web application (being rebuilt on the new API)
+apps/web/            Next.js web application (see apps/web/README.md)
 backend/
   app/core/          Config, database and tenancy, auth, permissions, errors, paging, idempotency, storage
   app/modules/       One package per business module: models, schemas, router, and service where rules live
   alembic/           Migrations: 0001 schema, 0002 row-level security, grants, guards and sign-in functions
-  scripts/           Demo data
+  scripts/           Demo data, and the export of the API contract the web types are generated from
   tests/             API and SQL-level tests
 infrastructure/      Docker assets (Terraform will live here)
 docs/                Architecture, decisions, roadmap, the implementation audit
