@@ -5,8 +5,8 @@ from day one. One owner profile can run **up to ten companies**, each with its o
 them in one click.
 
 > **Status.** The API covers everything in the table below and is fully tested. The web application has
-> screens for sign-in and companies, the dashboard, the directory, loads, dispatch, documents, safety and
-> maintenance; finance, reports and administration screens follow. A screen appears in the app when it is
+> screens for sign-in and companies, the dashboard, the directory, loads, dispatch, documents, safety,
+> maintenance, invoices and payments; expenses, settlements, reports and administration screens follow. A screen appears in the app when it is
 > built, never as a placeholder. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ## What the API does today

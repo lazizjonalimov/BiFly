@@ -15,7 +15,7 @@ this repository. The web column is the screens; the API column is the rules behi
 | 8 | Documents | Done | Done: documents center with filters, uploads on loads, drivers, equipment and customers, POD review through the load, compliance review |
 | 9 | Safety and compliance | Done: status, expirations queue, blocking, inspections with defects | Done: safety page with summary, expirations queue and documents to review; inspections (list, record, detail) |
 | 10 | Fleet and maintenance | Done: work orders with costs and lifecycle, out-of-service and return to service, summary, dashboard alerts, search, attachments | Done: maintenance page with summary, work orders and inspections, work order page with costs and documents, unit Maintenance tab, return to service |
-| 11 | Finance | Done: invoices, payments, aging. Not started: expenses, fuel, driver settlements | Not started |
+| 11 | Finance | Done: invoices, payments, aging. Not started: expenses, fuel, driver settlements | Done: invoices (list with receivables, create from completed loads, draft editing with loads and adjustments, issue, void, print), payments (record with allocations, apply later, reverse), customer invoices tab, "invoice this load". Not started: expenses, fuel, settlements |
 | 12 | Reports and administration | Done: dashboard, exceptions, search, four reports, CSV, audit log, role matrix | Done: dashboard, companies, team, terminals. Not started: company settings, role matrix, audit log, reports, search |
 
 ## What "Done" covers in the API
@@ -32,9 +32,8 @@ this repository. The web column is the screens; the API column is the rules behi
 
 ## Next
 
-1. **Finance**: invoices and payments screens, receivables.
-2. **Finance, part two**: expenses, fuel, driver settlements.
-3. **Reports and administration**: reports with export, company settings, role matrix, audit log.
+1. **Finance, part two**: expenses, fuel, driver settlements.
+2. **Reports and administration**: reports with export, company settings, role matrix, audit log.
 
 ## Deferred by decision
 

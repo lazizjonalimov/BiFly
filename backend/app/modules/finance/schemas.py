@@ -43,13 +43,13 @@ class VoidIn(BaseModel):
     reason: str = Field(min_length=1, max_length=300)
 
 
-class LineOut(BaseModel):
+class InvoiceLineOut(BaseModel):
     id: uuid.UUID
     load_id: uuid.UUID | None
     load_number: str | None
     kind: str
     description: str
-    quantity: Decimal
+    quantity: Money  # two decimal places, written the same way as money
     unit_price: Money
     amount: Money
 
@@ -98,7 +98,7 @@ class InvoiceDetail(InvoiceListItem):
     seller: Party
     bill_to: Party
     payment_terms_days: int | None
-    lines: list[LineOut]
+    lines: list[InvoiceLineOut]
     payments: list[AppliedPayment]
     issued_at: datetime | None
     issued_by_name: str | None

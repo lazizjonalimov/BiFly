@@ -17,6 +17,10 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return <tbody data-slot="table-body" className={cn("[&_tr:last-child]:border-0", className)} {...props} />;
 }
 
+function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
+  return <tfoot data-slot="table-footer" className={cn("border-t [&>tr]:last:border-b-0", className)} {...props} />;
+}
+
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return <tr data-slot="table-row" className={cn("border-b transition-colors hover:bg-muted/60 data-[state=selected]:bg-muted", className)} {...props} />;
 }
@@ -29,4 +33,4 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return <td data-slot="table-cell" className={cn("px-3 py-2.5 align-middle", className)} {...props} />;
 }
 
-export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow };
+export { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow };

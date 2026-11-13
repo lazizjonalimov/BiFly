@@ -3253,7 +3253,7 @@ export interface components {
             /** Issued By Name */
             issued_by_name: string | null;
             /** Lines */
-            lines: components["schemas"]["LineOut"][];
+            lines: components["schemas"]["InvoiceLineOut"][];
             /** Notes */
             notes: string | null;
             /** Paid */
@@ -3274,6 +3274,28 @@ export interface components {
             void_reason: string | null;
             /** Voided At */
             voided_at: string | null;
+        };
+        /** InvoiceLineOut */
+        InvoiceLineOut: {
+            /** Amount */
+            amount: string;
+            /** Description */
+            description: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Load Id */
+            load_id: string | null;
+            /** Load Number */
+            load_number: string | null;
+            /** Quantity */
+            quantity: string;
+            /** Unit Price */
+            unit_price: string;
         };
         /** InvoiceListItem */
         InvoiceListItem: {
@@ -3390,28 +3412,6 @@ export interface components {
             unit?: string | null;
             /** Weight Lbs */
             weight_lbs?: number | null;
-        };
-        /** LineOut */
-        LineOut: {
-            /** Amount */
-            amount: string;
-            /** Description */
-            description: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Kind */
-            kind: string;
-            /** Load Id */
-            load_id: string | null;
-            /** Load Number */
-            load_number: string | null;
-            /** Quantity */
-            quantity: string;
-            /** Unit Price */
-            unit_price: string;
         };
         /** LinkIn */
         LinkIn: {

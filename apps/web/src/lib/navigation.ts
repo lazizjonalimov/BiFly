@@ -1,4 +1,4 @@
-import { Building2Icon, ContainerIcon, FileTextIcon, IdCardIcon, LayoutDashboardIcon, PackageIcon, RadioTowerIcon, ShieldCheckIcon, TruckIcon, UserCogIcon, UsersIcon, WarehouseIcon, WrenchIcon, type LucideIcon } from "lucide-react";
+import { BanknoteIcon, Building2Icon, ContainerIcon, FileTextIcon, IdCardIcon, LayoutDashboardIcon, PackageIcon, RadioTowerIcon, ReceiptIcon, ShieldCheckIcon, TruckIcon, UserCogIcon, UsersIcon, WarehouseIcon, WrenchIcon, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -47,6 +47,13 @@ export const NAVIGATION: NavGroup[] = [
     ],
   },
   {
+    label: "Finance",
+    items: [
+      { label: "Invoices", path: "finance/invoices", icon: ReceiptIcon, anyOf: ["invoices.read"] },
+      { label: "Payments", path: "finance/payments", icon: BanknoteIcon, anyOf: ["payments.read"] },
+    ],
+  },
+  {
     label: "Administration",
     items: [
       { label: "Team", path: "settings/team", icon: UserCogIcon, anyOf: ["users.manage"] },
@@ -75,6 +82,9 @@ export const SEGMENT_LABELS: Record<string, string> = {
   documents: "Documents",
   maintenance: "Maintenance",
   inspections: "Inspections",
+  finance: "Finance",
+  invoices: "Invoices",
+  payments: "Payments",
 };
 
 /**
@@ -82,7 +92,7 @@ export const SEGMENT_LABELS: Record<string, string> = {
  * dashboard's exceptions, search results). A resource whose screen isn't built yet has no entry, and the
  * link is simply not offered.
  */
-const RESOURCE_PATHS: Record<string, string> = { loads: "loads", customers: "customers", drivers: "drivers", vehicles: "equipment/trucks", trailers: "equipment/trailers", safety: "safety", documents: "documents", maintenance: "maintenance" };
+const RESOURCE_PATHS: Record<string, string> = { loads: "loads", customers: "customers", drivers: "drivers", vehicles: "equipment/trucks", trailers: "equipment/trailers", safety: "safety", documents: "documents", maintenance: "maintenance", invoices: "finance/invoices", payments: "finance/payments" };
 
 export function resourcePath(resource: string): string | null {
   return RESOURCE_PATHS[resource] ?? null;

@@ -4531,7 +4531,7 @@
           },
           "lines": {
             "items": {
-              "$ref": "#/components/schemas/LineOut"
+              "$ref": "#/components/schemas/InvoiceLineOut"
             },
             "title": "Lines",
             "type": "array"
@@ -4637,6 +4637,70 @@
           "allowed_actions"
         ],
         "title": "InvoiceDetail",
+        "type": "object"
+      },
+      "InvoiceLineOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "load_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Id"
+          },
+          "load_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Number"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "unit_price": {
+            "title": "Unit Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "load_id",
+          "load_number",
+          "kind",
+          "description",
+          "quantity",
+          "unit_price",
+          "amount"
+        ],
+        "title": "InvoiceLineOut",
         "type": "object"
       },
       "InvoiceListItem": {
@@ -5029,70 +5093,6 @@
           }
         },
         "title": "ItemPatch",
-        "type": "object"
-      },
-      "LineOut": {
-        "properties": {
-          "amount": {
-            "title": "Amount",
-            "type": "string"
-          },
-          "description": {
-            "title": "Description",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "load_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load Id"
-          },
-          "load_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load Number"
-          },
-          "quantity": {
-            "title": "Quantity",
-            "type": "string"
-          },
-          "unit_price": {
-            "title": "Unit Price",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "load_id",
-          "load_number",
-          "kind",
-          "description",
-          "quantity",
-          "unit_price",
-          "amount"
-        ],
-        "title": "LineOut",
         "type": "object"
       },
       "LinkIn": {

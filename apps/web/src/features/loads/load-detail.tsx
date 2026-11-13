@@ -1,9 +1,11 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
-import { PencilIcon } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { PencilIcon, ReceiptIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { ErrorState } from "@/components/feedback/states";
 import { useBreadcrumbLabel } from "@/components/layout/breadcrumbs";
 import { DescriptionList, Detail } from "@/components/layout/description-list";
@@ -15,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentsPanel } from "@/features/documents/documents-panel";
+import { invalidateFinance } from "@/features/finance/lib";
 import { ActivityPanel } from "@/features/loads/activity-panel";
 import { FreightPanel } from "@/features/loads/charges-panel";
 import { Risks } from "@/features/loads/columns";
@@ -24,6 +27,8 @@ import { route, type LoadDetail } from "@/features/loads/lib";
 import { RoutePanel } from "@/features/loads/route-panel";
 import { loadKey, useLoad } from "@/features/loads/use-load";
 import { useTerminals } from "@/hooks/use-options";
+import { api, unwrap } from "@/lib/api/client";
+import { errorMessage } from "@/lib/api/errors";
 import { useCan, useOrg, useWorkspacePath } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/format/dates";
 import { formatMoney } from "@/lib/format/money";
@@ -116,8 +121,31 @@ function MoneyCard({ load }: { load: LoadDetail }) {
             ({humanize(load.invoice.status)})
           </p>
         ) : null}
+        {!load.invoice && load.status === "completed" && load.billing_status === "unbilled" && can("invoices.create") ? <InvoiceThisLoad load={load} /> : null}
       </CardContent>
     </Card>
+  );
+}
+
+/** A completed load not on any invoice: start a draft for it in one step. */
+function InvoiceThisLoad({ load }: { load: LoadDetail }) {
+  const org = useOrg();
+  const path = useWorkspacePath();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const create = useMutation({
+    mutationFn: () => unwrap(api.POST("/api/v1/invoices", { body: { customer_id: load.customer.id, load_ids: [load.id] } })),
+    onSuccess: (invoice) => {
+      invalidateFinance(queryClient, org.id);
+      toast.success("Draft invoice created");
+      router.push(path("finance", "invoices", invoice.id));
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  return (
+    <Button size="sm" className="mt-2 w-fit" onClick={() => create.mutate()} disabled={create.isPending}>
+      <ReceiptIcon /> Invoice this load
+    </Button>
   );
 }
 

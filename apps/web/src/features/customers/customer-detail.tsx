@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CustomerSheet } from "@/features/customers/customer-sheet";
 import { DocumentsPanel } from "@/features/documents/documents-panel";
+import { RelatedInvoices } from "@/features/finance/related-invoices";
 import { RelatedLoads } from "@/features/loads/related-loads";
 import { api, unwrap } from "@/lib/api/client";
 import type { Schema } from "@/lib/api/types";
@@ -280,6 +281,7 @@ export function CustomerDetail({ id }: { id: string }) {
             Addresses <Badge>{customer.addresses.length}</Badge>
           </TabsTrigger>
           {can("loads.read") ? <TabsTrigger value="loads">Loads</TabsTrigger> : null}
+          {can("invoices.read") ? <TabsTrigger value="invoices">Invoices</TabsTrigger> : null}
           {can("documents.read") ? <TabsTrigger value="documents">Documents</TabsTrigger> : null}
         </TabsList>
 
@@ -378,6 +380,13 @@ export function CustomerDetail({ id }: { id: string }) {
           <TabsContent value="loads">
             <Card>
               <RelatedLoads filter={{ customer_id: customer.id }} emptyText="No loads booked for this customer yet." />
+            </Card>
+          </TabsContent>
+        ) : null}
+        {can("invoices.read") ? (
+          <TabsContent value="invoices">
+            <Card>
+              <RelatedInvoices customerId={customer.id} />
             </Card>
           </TabsContent>
         ) : null}

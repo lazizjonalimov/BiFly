@@ -89,7 +89,7 @@ def _invoice_detail(db: Session, p: Principal, invoice_id: uuid.UUID) -> s.Invoi
                        mc_number=org.mc_number),
         bill_to=s.Party(**{k: v for k, v in snapshot.items() if k in s.Party.model_fields}),
         payment_terms_days=terms,
-        lines=[s.LineOut(id=line.id, load_id=line.load_id, load_number=number, kind=line.kind,
+        lines=[s.InvoiceLineOut(id=line.id, load_id=line.load_id, load_number=number, kind=line.kind,
                          description=line.description, quantity=line.quantity, unit_price=line.unit_price,
                          amount=line.amount) for line, number in lines],
         payments=[s.AppliedPayment(payment_id=pay.id, received_on=pay.received_on, method=pay.method,
