@@ -11868,7 +11868,7 @@ export interface operations {
                 /** @description Default: expired and expiring */
                 state?: ("expired" | "expiring" | "missing") | null;
                 within_days?: number;
-                entity_type?: ("driver" | "vehicle" | "trailer") | null;
+                entity_type?: ("driver" | "vehicle" | "trailer" | "equipment") | null;
                 terminal_id?: string | null;
             };
             header?: never;

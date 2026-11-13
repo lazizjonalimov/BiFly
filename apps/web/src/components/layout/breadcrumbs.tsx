@@ -35,7 +35,7 @@ export function Breadcrumbs() {
     href: `/${[slug, ...segments.slice(0, index + 1)].join("/")}`,
     text: UUID.test(segment) ? (label ?? "…") : (SEGMENT_LABELS[segment] ?? segment),
     // "settings" groups pages but is not a page itself.
-    linked: index < segments.length - 1 && segment !== "settings" && segment !== "equipment" && segment !== "finance",
+    linked: index < segments.length - 1 && !["settings", "equipment", "finance"].includes(segment),
   }));
 
   return (

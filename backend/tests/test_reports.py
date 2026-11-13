@@ -37,6 +37,7 @@ def test_the_expirations_queue_lists_every_dated_item_in_order(org):
     assert [x["item"] for x in org.items("/safety/expirations", state="expiring", within_days=10)] == ["medical"]
     assert [x["item"] for x in org.items("/safety/expirations", within_days=60)][-1] == "inspection"
     assert {x["entity_type"] for x in org.items("/safety/expirations", entity_type="vehicle")} == {"vehicle"}
+    assert [x["entity_label"] for x in org.items("/safety/expirations", entity_type="equipment")] == ["Truck 101"]
     assert {x["entity_label"] for x in org.items("/safety/expirations", terminal_id=yard["id"])} == {"Ed Expired"}
     assert [x["entity_label"] for x in org.items("/safety/expirations", q="truck")] == ["Truck 101"]
     assert org.items("/safety/expirations", state="missing") == []

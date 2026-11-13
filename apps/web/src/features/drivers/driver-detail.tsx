@@ -21,7 +21,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DocumentsPanel } from "@/features/documents/documents-panel";
 import { DriverSheet } from "@/features/drivers/driver-sheet";
+import { RelatedLoads } from "@/features/loads/related-loads";
 import { ComplianceAlert, ComplianceBadge, ExpiryDate } from "@/features/safety/compliance";
 import { useTerminals } from "@/hooks/use-options";
 import { api, unwrap } from "@/lib/api/client";
@@ -180,6 +182,8 @@ export function DriverDetail({ id }: { id: string }) {
           <TabsTrigger value="qualifications">
             Qualification file <Badge>{items.length}</Badge>
           </TabsTrigger>
+          {can("documents.read") ? <TabsTrigger value="documents">Documents</TabsTrigger> : null}
+          {can("loads.read") ? <TabsTrigger value="loads">Loads</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="profile" className="grid gap-4">
@@ -287,6 +291,20 @@ export function DriverDetail({ id }: { id: string }) {
             )}
           </Card>
         </TabsContent>
+        {can("documents.read") ? (
+          <TabsContent value="documents">
+            <Card>
+              <DocumentsPanel entityType="driver" entityId={driver.id} types={["license", "medical", "other"]} emptyHint="Keep scans of the licence and medical card here. Safety reviews them; only roles allowed to see licence numbers can open them." />
+            </Card>
+          </TabsContent>
+        ) : null}
+        {can("loads.read") ? (
+          <TabsContent value="loads">
+            <Card>
+              <RelatedLoads filter={{ driver_id: driver.id }} emptyText="This driver hasn't been assigned a load yet." />
+            </Card>
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <DriverSheet open={editing} onOpenChange={setEditing} driver={driver} />

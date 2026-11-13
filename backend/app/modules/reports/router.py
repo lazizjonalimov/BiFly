@@ -154,7 +154,7 @@ def dashboard_exceptions(p: Principal = Depends(require("dashboard.read")), db: 
             "An expired licence, medical card or required qualification", "safety",
             state="expired", entity_type="driver")
         add(safety.units_blocked, "UNITS_BLOCKED", "high", "Equipment that can't be dispatched",
-            "Expired insurance, registration or inspection", "safety", state="expired")
+            "Expired insurance, registration or inspection", "safety", state="expired", entity_type="equipment")
         add(safety.expiring, "EXPIRING_SOON", "medium", "Expiring within 30 days",
             "Renew these before they stop a truck", "safety", state="expiring")
         if p.can("safety.manage"):

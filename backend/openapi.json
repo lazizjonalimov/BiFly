@@ -21724,7 +21724,8 @@
                   "enum": [
                     "driver",
                     "vehicle",
-                    "trailer"
+                    "trailer",
+                    "equipment"
                   ],
                   "type": "string"
                 },

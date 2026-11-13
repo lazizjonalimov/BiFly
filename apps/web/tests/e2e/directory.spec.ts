@@ -114,11 +114,14 @@ test("add a truck and a trailer; a duplicate unit number is explained on the fie
   await sheet.getByRole("button", { name: "Add truck" }).click();
   await expect(table.getByRole("row")).toHaveCount(3);
 
-  // Take one out of service from its row, then filter by status.
-  await table.getByRole("button", { name: "102", exact: true }).click();
+  // Take one out of service from its page, then filter the list by status.
+  await table.getByRole("link", { name: "102", exact: true }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   const edit = page.getByRole("dialog", { name: "Edit truck 102" });
   await edit.getByLabel("Status").selectOption("out_of_service");
   await edit.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("heading", { name: /Truck 102/ }).getByText("Out of service")).toBeVisible();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Trucks" }).click();
   await expect(table.getByRole("row").filter({ hasText: "Out of service" })).toBeVisible();
   await page.getByLabel("Status").selectOption("out_of_service");
   await expect(page).toHaveURL(/status=out_of_service/);

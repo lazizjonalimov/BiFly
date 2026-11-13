@@ -18,7 +18,8 @@ from app.modules.safety.rules import ITEM_LABELS, WARN_DAYS
 
 router = APIRouter(prefix="/safety", tags=["safety"])
 
-EntityType = Literal["driver", "vehicle", "trailer"]
+# "equipment" means trucks and trailers together.
+EntityType = Literal["driver", "vehicle", "trailer", "equipment"]
 State = Literal["expired", "expiring", "missing"]
 FAR = date(9999, 1, 1)
 DOCUMENT_LABELS = {"license": "Licence document", "medical": "Medical document", "insurance": "Insurance document",
@@ -113,7 +114,9 @@ def expirations(params: Annotated[ExpirationParams, Query()], p: Principal = Dep
         stmt = stmt.where(t.c.expires_on.is_(None))
     else:
         stmt = stmt.where(t.c.expires_on <= horizon)
-    if params.entity_type:
+    if params.entity_type == "equipment":
+        stmt = stmt.where(t.c.entity_type != "driver")
+    elif params.entity_type:
         stmt = stmt.where(t.c.entity_type == params.entity_type)
     if params.terminal_id:
         stmt = stmt.where(t.c.terminal_id == params.terminal_id)

@@ -1,4 +1,4 @@
-import { Building2Icon, ContainerIcon, IdCardIcon, LayoutDashboardIcon, PackageIcon, RadioTowerIcon, TruckIcon, UserCogIcon, UsersIcon, WarehouseIcon, type LucideIcon } from "lucide-react";
+import { Building2Icon, ContainerIcon, FileTextIcon, IdCardIcon, LayoutDashboardIcon, PackageIcon, RadioTowerIcon, ShieldCheckIcon, TruckIcon, UserCogIcon, UsersIcon, WarehouseIcon, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -39,6 +39,13 @@ export const NAVIGATION: NavGroup[] = [
     ],
   },
   {
+    label: "Safety and paperwork",
+    items: [
+      { label: "Safety", path: "safety", icon: ShieldCheckIcon, anyOf: ["safety.read"] },
+      { label: "Documents", path: "documents", icon: FileTextIcon, anyOf: ["documents.read"] },
+    ],
+  },
+  {
     label: "Administration",
     items: [
       { label: "Team", path: "settings/team", icon: UserCogIcon, anyOf: ["users.manage"] },
@@ -63,6 +70,8 @@ export const SEGMENT_LABELS: Record<string, string> = {
   loads: "Loads",
   new: "New load",
   dispatch: "Dispatch",
+  safety: "Safety",
+  documents: "Documents",
 };
 
 /**
@@ -70,7 +79,7 @@ export const SEGMENT_LABELS: Record<string, string> = {
  * dashboard's exceptions, search results). A resource whose screen isn't built yet has no entry, and the
  * link is simply not offered.
  */
-const RESOURCE_PATHS: Record<string, string> = { loads: "loads", customers: "customers", drivers: "drivers", vehicles: "equipment/trucks", trailers: "equipment/trailers" };
+const RESOURCE_PATHS: Record<string, string> = { loads: "loads", customers: "customers", drivers: "drivers", vehicles: "equipment/trucks", trailers: "equipment/trailers", safety: "safety", documents: "documents" };
 
 export function resourcePath(resource: string): string | null {
   return RESOURCE_PATHS[resource] ?? null;

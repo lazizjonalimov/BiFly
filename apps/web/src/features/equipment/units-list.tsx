@@ -3,6 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ContainerIcon, PlusIcon, TruckIcon } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { DataTable, FilterSelect } from "@/components/data-table/data-table";
@@ -15,7 +16,7 @@ import { useListState } from "@/hooks/use-list-state";
 import { useTerminals } from "@/hooks/use-options";
 import { api, unwrap } from "@/lib/api/client";
 import type { Page } from "@/lib/api/types";
-import { useCan, useOrg } from "@/lib/auth/session";
+import { useCan, useOrg, useWorkspacePath } from "@/lib/auth/session";
 import { formatDate } from "@/lib/format/dates";
 import { formatNumber } from "@/lib/format/text";
 
@@ -35,6 +36,7 @@ export function UnitsList({ kind }: { kind: UnitKind }) {
   const pathname = usePathname();
   const search = useSearchParams();
   const terminals = useTerminals();
+  const path = useWorkspacePath();
   const state = useListState({ defaultSort: "unit_number", filters: FILTERS });
   const [sheet, setSheet] = useState<{ unit?: Unit } | null>(null);
   const wantsNew = search.get("new") === "1";
@@ -58,14 +60,11 @@ export function UnitsList({ kind }: { kind: UnitKind }) {
       header: "Unit",
       enableSorting: true,
       enableHiding: false,
-      cell: ({ row }) =>
-        canManage ? (
-          <button type="button" className="font-medium hover:underline" onClick={() => setSheet({ unit: row.original })}>
-            {row.original.unit_number}
-          </button>
-        ) : (
-          <span className="font-medium">{row.original.unit_number}</span>
-        ),
+      cell: ({ row }) => (
+        <Link href={path(kind === "truck" ? "equipment/trucks" : "equipment/trailers", row.original.id)} className="font-medium hover:underline">
+          {row.original.unit_number}
+        </Link>
+      ),
     },
     ...(kind === "trailer"
       ? ([
@@ -103,7 +102,7 @@ export function UnitsList({ kind }: { kind: UnitKind }) {
         query={query}
         state={state}
         getRowId={(row) => row.id}
-        onRowClick={canManage ? (row) => setSheet({ unit: row }) : undefined}
+        rowHref={(row) => path(kind === "truck" ? "equipment/trucks" : "equipment/trailers", row.id)}
         preferenceKey={resource}
         searchPlaceholder="Search unit, plate or VIN"
         filters={

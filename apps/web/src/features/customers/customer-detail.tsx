@@ -22,6 +22,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CustomerSheet } from "@/features/customers/customer-sheet";
+import { DocumentsPanel } from "@/features/documents/documents-panel";
+import { RelatedLoads } from "@/features/loads/related-loads";
 import { api, unwrap } from "@/lib/api/client";
 import type { Schema } from "@/lib/api/types";
 import { useCan, useOrg } from "@/lib/auth/session";
@@ -277,6 +279,8 @@ export function CustomerDetail({ id }: { id: string }) {
           <TabsTrigger value="addresses">
             Addresses <Badge>{customer.addresses.length}</Badge>
           </TabsTrigger>
+          {can("loads.read") ? <TabsTrigger value="loads">Loads</TabsTrigger> : null}
+          {can("documents.read") ? <TabsTrigger value="documents">Documents</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="details">
@@ -370,6 +374,20 @@ export function CustomerDetail({ id }: { id: string }) {
             )}
           </Card>
         </TabsContent>
+        {can("loads.read") ? (
+          <TabsContent value="loads">
+            <Card>
+              <RelatedLoads filter={{ customer_id: customer.id }} emptyText="No loads booked for this customer yet." />
+            </Card>
+          </TabsContent>
+        ) : null}
+        {can("documents.read") ? (
+          <TabsContent value="documents">
+            <Card>
+              <DocumentsPanel entityType="customer" entityId={customer.id} types={["rate_confirmation", "other"]} emptyHint="Keep the carrier agreement, credit application and standing rate confirmations here." />
+            </Card>
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <CustomerSheet open={editing} onOpenChange={setEditing} customer={customer} />

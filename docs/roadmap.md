@@ -9,11 +9,11 @@ this repository. The web column is the screens; the API column is the rules behi
 | 2 | Design system and application shell | n/a | Done: theme (light and dark), components, sidebar, breadcrumbs, user menu, company switcher, terminal selector, global search (Ctrl/⌘ K), quick create, shared table and form standards. Notifications not started |
 | 3 | Sign-in and company switching | Done | Done: sign-up, sign-in, choose a company, switch, add with a copy, archive, restore |
 | 4 | Customers | Done | Done: list, form, detail with contacts and addresses, archive and restore |
-| 5 | Drivers and equipment | Done | Done: drivers with compliance and qualification file, trucks, trailers, terminals. Detail pages for units arrive with documents and maintenance |
+| 5 | Drivers and equipment | Done | Done: drivers with compliance, qualification file, documents and loads; trucks and trailers with their own pages, documents and loads; terminals |
 | 6 | Loads | Done | Done: list, four-step booking wizard with drafts, load page with route, freight and charges, documents, activity, every lifecycle action, conflict-safe editing |
 | 7 | Dispatch board and assignment | Done | Done: live board with counts, views and saved views, assignment panel with eligibility and reasons, reassign and unassign |
-| 8 | Documents | Done | On loads: upload, download, POD review through the load. Documents center and other records not started |
-| 9 | Safety and compliance | Done: status, expirations queue, blocking. Inspections not started | Not started |
+| 8 | Documents | Done | Done: documents center with filters, uploads on loads, drivers, equipment and customers, POD review through the load, compliance review |
+| 9 | Safety and compliance | Done: status, expirations queue, blocking. Inspections not started | Done: safety page with summary, expirations queue and documents to review. Inspections not started |
 | 10 | Fleet and maintenance | Not started (work orders, out-of-service flow) | Not started |
 | 11 | Finance | Done: invoices, payments, aging. Not started: expenses, fuel, driver settlements | Not started |
 | 12 | Reports and administration | Done: dashboard, exceptions, search, four reports, CSV, audit log, role matrix | Done: dashboard, companies, team, terminals. Not started: company settings, role matrix, audit log, reports, search |
@@ -30,9 +30,8 @@ this repository. The web column is the screens; the API column is the rules behi
 
 ## Next
 
-1. **Documents and safety**: documents center, compliance review, the expirations queue, documents on drivers
-   and equipment.
-2. **Finance**: invoices and payments screens; then reports and the remaining administration screens.
+1. **Finance**: invoices and payments screens, receivables.
+2. **Reports and administration**: reports with export, company settings, role matrix, audit log.
 3. **Maintenance**: work orders, inspections, out-of-service and return to service.
 4. **Finance, part two**: expenses, fuel, driver settlements.
 
