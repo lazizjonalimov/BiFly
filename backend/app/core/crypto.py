@@ -3,7 +3,7 @@
 Values are encrypted before they reach PostgreSQL, so a database dump, a backup, or a read replica never
 contains them in the clear. Uses Fernet (AES-128-CBC with an HMAC-SHA256 integrity check).
 
-Rotation: put the new key first in TMS_FIELD_ENCRYPTION_KEYS and keep the old one after it. New writes use the
+Rotation: put the new key first in BIFLY_FIELD_ENCRYPTION_KEYS and keep the old one after it. New writes use the
 new key, old rows still decrypt, and re-saving a row re-encrypts it.
 """
 import base64
@@ -16,7 +16,7 @@ from sqlalchemy.types import Text, TypeDecorator
 from app.core.config import get_settings
 
 # Used only when no key is configured (development and tests). Production refuses to start without real keys.
-_DEV_KEY = base64.urlsafe_b64encode(hashlib.sha256(b"carrier-tms development field key - not for production").digest())
+_DEV_KEY = base64.urlsafe_b64encode(hashlib.sha256(b"bifly development field key - not for production").digest())
 
 
 @lru_cache
@@ -25,7 +25,7 @@ def _cipher() -> MultiFernet:
     try:
         return MultiFernet([Fernet(k) for k in keys])
     except (ValueError, TypeError) as e:
-        raise RuntimeError("TMS_FIELD_ENCRYPTION_KEYS must be a comma-separated list of Fernet keys") from e
+        raise RuntimeError("BIFLY_FIELD_ENCRYPTION_KEYS must be a comma-separated list of Fernet keys") from e
 
 
 def validate_encryption_keys() -> None:
@@ -41,7 +41,7 @@ def decrypt(token: str) -> str:
     try:
         return _cipher().decrypt(token.encode()).decode()
     except InvalidToken as e:
-        raise RuntimeError("A stored value could not be decrypted. Is TMS_FIELD_ENCRYPTION_KEYS missing the key "
+        raise RuntimeError("A stored value could not be decrypted. Is BIFLY_FIELD_ENCRYPTION_KEYS missing the key "
                            "it was encrypted with?") from e
 
 

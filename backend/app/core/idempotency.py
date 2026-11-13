@@ -1,8 +1,9 @@
 """Idempotency-Key support.
 
-The first request with a key runs and stores its response; replays return the stored response without
-re-executing. The key row is inserted in the same transaction as the work, so concurrent duplicates block on
-the unique index until the first commits, then replay.
+The first request with a key runs and stores its response; replays return the stored response without doing
+the work again. The key row is inserted in the same transaction as the work, so concurrent duplicates block on
+the unique index until the first commits, then replay. A browser retry can never duplicate a load, an
+assignment, an invoice, a payment or a settlement.
 """
 import hashlib
 import json
@@ -23,7 +24,7 @@ from app.modules.organizations.models import IdempotencyKey
 def run_idempotent(db: Session, p: Principal, key: str | None, endpoint: str, payload: Any,
                    fn: Callable[[], tuple[int, Any]]) -> JSONResponse:
     if key is not None and not (1 <= len(key) <= 128):
-        raise Invalid("Idempotency-Key must be 1-128 characters")
+        raise Invalid("Idempotency-Key must be 1 to 128 characters")
 
     if key is None:
         status, body = fn()
@@ -42,16 +43,17 @@ def run_idempotent(db: Session, p: Principal, key: str | None, endpoint: str, pa
         existing = db.scalar(select(IdempotencyKey).where(IdempotencyKey.key == key))
         db.rollback()
         if existing is None or existing.endpoint != endpoint or existing.request_hash != digest:
-            raise Invalid("Idempotency-Key was already used with a different request")
+            raise Conflict("This Idempotency-Key was already used for a different request",
+                           code="IDEMPOTENCY_KEY_REUSED")
         if existing.response_status is None:
-            raise Conflict("A request with this Idempotency-Key is still in progress", code="idempotency_in_progress")
+            raise Conflict("The original request with this Idempotency-Key is still running",
+                           code="IDEMPOTENCY_IN_PROGRESS")
         return JSONResponse(existing.response_body, status_code=existing.response_status,
                             headers={"Idempotent-Replay": "true"})
 
     status, body = fn()
     encoded = jsonable_encoder(body)
-    db.execute(update(IdempotencyKey)
-               .where(IdempotencyKey.key == key)
+    db.execute(update(IdempotencyKey).where(IdempotencyKey.key == key)
                .values(response_status=status, response_body=encoded))
     db.commit()
     return JSONResponse(encoded, status_code=status)

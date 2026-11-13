@@ -1,46 +1,42 @@
-# Carrier TMS
+# BiFly
 
-A web-based transportation management system for trucking companies, built as a multi-tenant SaaS from day one:
-your own operation is simply the first company on the platform.
+A web-based transportation management system (TMS) for trucking companies, built as multi-tenant software
+from day one. One owner profile can run **up to ten companies**, each with its own books, and switch between
+them in one click.
 
-This repository contains the **foundation and the first working release**: one complete, auditable load —
-from order entry through dispatch, delivery, proof of delivery, invoicing and payment — for any number of
-isolated companies.
+> **Status.** The API described below is complete for the features listed and fully tested. The web
+> application in `apps/web` is being rebuilt on top of it (new design system, company switcher, dispatch
+> board, finance screens). Until that lands, the checked-in web app predates this API and does not work
+> against it. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
-![Dispatch board](docs/screenshots/dispatch-board.png)
-
-| | |
-| --- | --- |
-| ![Overview](docs/screenshots/overview.png) | ![Load detail](docs/screenshots/load-detail.png) |
-
-## What works today
+## What the API does today
 
 | Area | Included |
 | --- | --- |
-| Companies and users | Self-service company sign-up, team management, role-based permissions (owner, admin, dispatcher, safety, fleet, accounting, driver), password change with session revocation |
-| Master data | Customers, drivers (CDL / medical tracking; licence numbers encrypted and masked), trucks and trailers (insurance / registration tracking) |
-| Loads | Multi-stop loads, per-company load numbers, enforced status lifecycle, full status history |
-| Dispatch | Dispatch board, driver + truck + trailer assignment with compliance and availability checks |
-| Tracking | Arrive / depart events per stop; status advances automatically |
-| Documents | BOL / POD / receipt upload and download; delivery can't be confirmed without a POD |
-| Finance | Invoice from a completed load, partial and full payments, void, receivables and overdue totals |
-| Reporting | Operations overview and a 30-day compliance report |
-| Driver API | Endpoints for the future mobile app, limited to the driver's own released loads, safe to retry offline |
-| Platform | Tenant isolation in PostgreSQL, audit log, idempotency keys, cursor pagination, per-company time zone, OpenAPI docs |
+| Account and companies | Sign-up, one profile with up to 10 active companies, add a company by copying team, terminals, customers, drivers and equipment from another, archive (read-only) and restore, one-click switch |
+| Team and access | Nine roles with a published permission matrix, per-company membership, immediate effect of role changes, password change with session revocation, audit log |
+| Directory | Customers with contacts and addresses, drivers with qualification files and pay settings, trucks, trailers, terminals. Licence numbers are encrypted and masked by role |
+| Loads | Drafts, multi-stop routes, freight items, accessorial charges, notes, check calls, one enforced lifecycle with an immutable history, optimistic concurrency |
+| Dispatch | Board with server-side filters, sorting and paging, summary counts, saved views, eligibility with reason codes, schedule-overlap checks, safe assignment under concurrency, reassignment history |
+| Documents | Upload by intent, upload, complete (ready for S3 presigned URLs), content checks, links to any record, review, role-restricted licence and medical scans |
+| Safety | Compliance status on every driver and unit, expirations queue, blocking of expired drivers and equipment at assignment and at dispatch |
+| Finance | Draft invoices built from completed loads, gapless numbering at issue, immutable issued invoices, void, payments with allocations, unapplied money, reversal, receivables aging |
+| Insight | Role-aware dashboard, exceptions list, global search, revenue, driver, truck and aging reports with CSV export |
+| Driver access | A driver sees and updates only the loads they are hauling, and can add the proof of delivery |
 
-Not built yet: the driver mobile app, the customer portal, maps, ELD, notifications, driver settlements, and the
-AWS infrastructure. See [docs/roadmap.md](docs/roadmap.md) for the full picture.
+Not built yet: maintenance work orders, expenses and fuel, driver settlements, the driver mobile app, the
+customer portal, maps, ELD, notifications, and the AWS infrastructure.
 
 ## Architecture in one minute
 
 ```mermaid
 flowchart TB
   subgraph Clients
-    web["Web portal · Next.js<br/>(apps/web)"]
-    mobile["Driver app · Expo<br/>(planned)"]
+    web["Web app · Next.js<br/>(apps/web)"]
+    mobile["Driver app<br/>(planned)"]
     portal["Customer portal<br/>(planned)"]
   end
-  bff["Next.js server (BFF)<br/>keeps the API token in an httpOnly cookie"]
+  bff["Next.js server<br/>keeps the session in an httpOnly cookie"]
   api["FastAPI · modular monolith<br/>/api/v1 (backend/)"]
   db[("PostgreSQL<br/>row-level security per company")]
   files[("Document storage<br/>local volume now, S3 later")]
@@ -52,37 +48,23 @@ flowchart TB
   api --> files
 ```
 
-- **One backend, separate modules** (`organizations`, `customers`, `drivers`, `fleet`, `loads`, `dispatch`,
-  `documents`, `finance`). Modules can be split into services later; nothing requires it now.
-- **Tenant isolation is enforced by the database.** The API connects as a restricted role and PostgreSQL
-  row-level security hides every other company's rows. An ORM-level filter adds a second, independent layer, and
-  composite foreign keys make cross-company links impossible. The API refuses to start if its database role
-  could bypass these rules.
-- **The browser never holds the API token.** The Next.js server stores it in an httpOnly cookie and proxies
-  API calls.
+- **One backend, separate modules**: `organizations`, `customers`, `drivers`, `equipment`, `loads`,
+  `dispatch`, `documents`, `safety`, `finance`, `reports`.
+- **A company is the unit of isolation, enforced by the database.** The API connects as a restricted role
+  and PostgreSQL row-level security hides every other company's rows, including other companies under the
+  same owner. The API refuses to start if its database role could bypass these rules.
+- **FastAPI owns the rules.** Status changes, eligibility, money and permissions are decided on the server;
+  the web app only presents them.
+- **The browser never holds the API token.**
 
-Details, including the security model and how to add a module: [docs/architecture.md](docs/architecture.md).
+Details: [docs/architecture.md](docs/architecture.md). Decisions and their reasons:
+[docs/decisions](docs/decisions).
 
-## Run it
+## Run the API
 
-You need Docker. For development you also need Python 3.12 or newer (developed on 3.13) and Node.js 22.
+You need Docker, and for development Python 3.12 or newer (developed on 3.13).
 
-Run these on the computer where you want to use the app: `localhost` in the addresses below means that machine.
-If you are viewing the app through a hosted preview pane instead, see `TMS_ALLOW_EMBEDDING` under
-[Configuration](#configuration).
-
-### Everything in containers
-
-```bash
-docker compose --profile app up --build
-```
-
-Open http://localhost:3000 and choose **Create an account**. API documentation is at
-http://localhost:8000/api/docs.
-
-### For development (hot reload)
-
-Start PostgreSQL (creates both database roles and the `tms` / `tms_test` databases):
+Start PostgreSQL (creates both database roles and the `bifly` and `bifly_test` databases):
 
 ```bash
 docker compose up -d
@@ -98,22 +80,17 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
-Start the web app in a second terminal:
+Interactive API documentation is at http://localhost:8000/api/docs.
 
-```bash
-cd apps/web
-npm install
-npm run dev
-```
-
-Optionally load a demo company (10 loads at every stage, drivers, trucks, invoices). It prints the sign-in details:
+Load a demo account: two companies, loads at every stage, invoices and payments. It prints the sign-in
+details:
 
 ```bash
 cd backend && source .venv/bin/activate
 python scripts/seed_demo.py
 ```
 
-`make help` lists shortcuts for all of the above.
+`make help` lists shortcuts.
 
 ## Test it
 
@@ -121,22 +98,10 @@ python scripts/seed_demo.py
 cd backend && pytest
 ```
 
-The backend suite runs against a real PostgreSQL (the `tms_test` database from Docker Compose) and connects as
-the restricted application role, so tenant isolation is tested exactly as it runs in production.
-
-```bash
-cd apps/web && npm run lint && npm run typecheck
-```
-
-End-to-end, in a real browser, with the API and web app running (first time only:
-`npx playwright install chromium`):
-
-```bash
-cd apps/web && npm run e2e
-```
-
-The end-to-end test signs up a company and drives a load from creation to a paid invoice, then checks role
-restrictions, password change, the phone layout, and that a second company can't see any of it.
+The suite runs against a real PostgreSQL (the `bifly_test` database) and connects as the restricted
+application role, so tenant isolation is tested exactly as it runs in production. It covers isolation at the
+API and SQL level, the load lifecycle, assignment under concurrency, documents, invoicing and payments,
+permissions for every role, and the API contract.
 
 ## Configuration
 
@@ -144,49 +109,39 @@ Backend (`backend/.env`, see `backend/.env.example`):
 
 | Variable | Purpose |
 | --- | --- |
-| `TMS_DATABASE_URL` | Runtime connection. Must be the restricted role (`tms_app`), never an owner or superuser |
-| `TMS_MIGRATION_DATABASE_URL` | Schema owner (`tms_owner`), used only by Alembic |
-| `TMS_JWT_SECRET` | Token signing key. Required when `TMS_ENV=production` |
-| `TMS_FIELD_ENCRYPTION_KEYS` | Keys that encrypt driver licence numbers. Required in production. Back them up: without them the values can't be recovered |
-| `TMS_ENV` | `development`, `test` or `production` |
-| `TMS_SIGNUP_ENABLED` | Set to `false` to turn off self-service company sign-up |
-| `TMS_STORAGE_DIR` | Where uploaded documents are stored |
-| `TMS_CORS_ORIGINS` | Only needed for browser clients that call the API directly |
-
-Web (`apps/web/.env.local`, see `apps/web/.env.example`):
-
-| Variable | Purpose |
-| --- | --- |
-| `TMS_API_URL` | Where the Next.js server reaches the API. Default `http://localhost:8000` |
-| `TMS_ALLOW_EMBEDDING` | `true` lets the app be shown inside another site's frame, for hosted preview panes. Off by default; never enable in production |
+| `BIFLY_DATABASE_URL` | Runtime connection. Must be the restricted role (`bifly_app`), never an owner or superuser |
+| `BIFLY_MIGRATION_DATABASE_URL` | Schema owner (`bifly_owner`), used only by Alembic |
+| `BIFLY_JWT_SECRET` | Token signing key. Required when `BIFLY_ENV=production` |
+| `BIFLY_FIELD_ENCRYPTION_KEYS` | Keys that encrypt driver licence numbers. Required in production. Back them up: without them the values can't be recovered |
+| `BIFLY_ENV` | `development`, `test` or `production` |
+| `BIFLY_SIGNUP_ENABLED` | Set to `false` to turn off self-service sign-up |
+| `BIFLY_MAX_COMPANIES_PER_ACCOUNT` | Active companies a new account may hold. Default 10 |
+| `BIFLY_STORAGE_DIR` | Where uploaded documents are stored |
+| `BIFLY_MAX_UPLOAD_BYTES` | Largest accepted upload. Default 15 MB |
+| `BIFLY_CORS_ORIGINS` | Only needed for browser clients that call the API directly |
 
 ## Repository layout
 
 ```
-apps/web/            Next.js web portal (TypeScript, Tailwind, TanStack Query) and its Playwright test
+apps/web/            Next.js web application (being rebuilt on the new API)
 backend/
-  app/core/          Config, database + tenancy, auth, permissions, errors, idempotency, pagination, storage
-  app/modules/       One package per business module: models, schemas, router (and service where it helps)
-  alembic/           Migrations: 0001 schema, 0002 row-level security, grants and auth functions
-  scripts/           Demo data seeder
+  app/core/          Config, database and tenancy, auth, permissions, errors, paging, idempotency, storage
+  app/modules/       One package per business module: models, schemas, router, and service where rules live
+  alembic/           Migrations: 0001 schema, 0002 row-level security, grants, guards and sign-in functions
+  scripts/           Demo data
   tests/             API and SQL-level tests
 infrastructure/      Docker assets (Terraform will live here)
-docs/                Architecture, roadmap, screenshots
+docs/                Architecture, decisions, roadmap, the implementation audit
 ```
 
 ## Known limitations
 
-These are deliberate omissions for a first release, not surprises:
-
-- **Sign-in is local email + password** with signed tokens. Amazon Cognito, MFA, password reset by email and
-  inviting an existing account into a second company are not built. Admins currently set a temporary password,
-  which the user can then change.
-- **Login throttling is per API process.** Real rate limiting belongs at the edge (AWS WAF).
-- **Documents are stored on a local volume** behind a storage interface. The S3 adapter is not written.
-- **Invoices carry a single line-haul line.** No accessorials, expenses, fuel or driver settlements yet.
-- **Pickers show the first 200 records** (drivers, trucks, customers). Larger fleets need searchable pickers.
-- **Only USD is accepted.** Currency is stored on every load, invoice and payment, so adding others is not a
-  schema change, but nothing converts or separates currencies yet.
-- **The company time zone is set at sign-up** from the browser. It can be changed through the API
-  (`PATCH /api/v1/organization`), but there is no settings screen for it yet.
-- **No background jobs.** Expiry reminders, notifications and idempotency-key cleanup need a worker.
+- **Sign-in is local email and password** with signed tokens. Cognito, MFA, password reset by email and
+  invitations by email are deferred to the deployment phase
+  ([decision 0003](docs/decisions/0003-local-adapters-until-deployment.md)). An administrator sets a
+  temporary password for a new person; someone who already has a BiFly sign-in is simply given access.
+- **Login throttling is per API process.** Real rate limiting belongs at the edge.
+- **Documents are stored on a local volume** behind a storage interface, and are not scanned for malware.
+- **No background jobs.** Reminders and notifications need a worker; expirations are worked out when read.
+- **One currency per company.** Currency is stored on every load, invoice and payment, but nothing converts.
+- **Reports cover one company.** A view across all of an account's companies is not built.

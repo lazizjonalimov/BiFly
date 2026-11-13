@@ -33,7 +33,7 @@ lint: ## Lint and type-check backend and web
 	cd backend && .venv/bin/ruff check app tests alembic scripts
 	cd apps/web && npm run lint && npm run typecheck
 
-e2e: ## Run the browser end-to-end test (API and web app must be running)
+e2e: ## Run the browser end-to-end tests (API and web app must be running)
 	cd apps/web && npm run e2e
 
 stack: ## Build and run everything in containers

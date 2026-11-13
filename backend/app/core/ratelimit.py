@@ -20,7 +20,7 @@ class FailureLimiter:
         with self._lock:
             n, until = self._fails.get(key, (0, 0.0))
         if n >= self.max_failures and until > time.time():
-            raise AppError("Too many failed attempts. Try again later.", status=429, code="rate_limited")
+            raise AppError("Too many failed attempts. Try again later.", status=429, code="RATE_LIMITED")
 
     def fail(self, key: str) -> None:
         now = time.time()

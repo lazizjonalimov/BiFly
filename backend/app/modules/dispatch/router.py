@@ -1,28 +1,22 @@
 import uuid
-from datetime import date
+from datetime import UTC, datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header
-from pydantic import BaseModel
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Header, Query
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
-from app.core.audit import audit
 from app.core.deps import Principal, get_db, get_or_404, require
-from app.core.errors import Conflict
+from app.core.errors import Conflict, NotFound
 from app.core.idempotency import run_idempotent
+from app.core.pagination import Page, envelope
+from app.modules.dispatch import eligibility, service
 from app.modules.dispatch.models import DispatchAssignment
-from app.modules.drivers.models import Driver
-from app.modules.fleet.models import Trailer, Vehicle
 from app.modules.loads import schemas as ls
-from app.modules.loads.models import Load, LoadStop
-from app.modules.loads.router import assignment_view, assignment_views, detail_view, summarize
-from app.modules.loads.service import change_status, lock_load_or_404
+from app.modules.loads import service as loads
+from app.modules.loads.models import Load
 
 router = APIRouter(prefix="/dispatch", tags=["dispatch"])
-
-# Equipment a load needs -> trailer types that satisfy it. Loads on straight trucks need no trailer.
-TRAILER_FOR = {"dry_van": {"dry_van"}, "reefer": {"reefer"}, "flatbed": {"flatbed", "step_deck"},
-               "step_deck": {"step_deck"}, "tanker": {"tanker"}}
-IN_PROGRESS = ("dispatched", "in_transit")
 
 
 class AssignIn(BaseModel):
@@ -30,119 +24,96 @@ class AssignIn(BaseModel):
     driver_id: uuid.UUID
     vehicle_id: uuid.UUID
     trailer_id: uuid.UUID | None = None
+    version: int = Field(description="The load version you last saw")
+    reason: str | None = Field(default=None, max_length=200)
 
 
-def _not_expired(label: str, expiry: date | None, on: date) -> None:
-    if expiry and expiry < on:
-        raise Conflict(f"{label} expired on {expiry.isoformat()}", code="compliance")
+class ReassignIn(BaseModel):
+    """Only what is sent changes. Send `trailer_id: null` to drop the trailer."""
+    driver_id: uuid.UUID | None = None
+    vehicle_id: uuid.UUID | None = None
+    trailer_id: uuid.UUID | None = None
+    version: int
+    reason: str | None = Field(default=None, max_length=200)
 
 
-def _busy(db, column, value, load_id: uuid.UUID, what: str) -> None:
-    clash = db.scalar(select(Load.load_number).join(DispatchAssignment, DispatchAssignment.load_id == Load.id)
-                      .where(column == value, DispatchAssignment.status == "active", Load.id != load_id,
-                             Load.status.in_(IN_PROGRESS)))
-    if clash:
-        raise Conflict(f"{what} is currently on load {clash}", code="resource_busy")
+class ReleaseIn(BaseModel):
+    version: int
+    reason: str | None = Field(default=None, max_length=200)
 
 
-@router.post("/assignments", response_model=ls.LoadDetail)
-def assign(body: AssignIn, p: Principal = Depends(require("dispatch:write")), db=Depends(get_db),
-           idempotency_key: str | None = Header(default=None)):
+@router.get("/board", response_model=Page[ls.LoadListItem])
+def board(params: Annotated[ls.LoadListParams, Query()], p: Principal = Depends(require("dispatch.read")),
+          db: Session = Depends(get_db)):
+    """The loads a dispatcher is working, filtered, sorted and paged in the database."""
+    items, info = loads.list_loads(db, p, params, default_view=None if params.status else "active")
+    return envelope(items, info)
+
+
+@router.get("/summary", response_model=ls.BoardSummary)
+def summary(terminal_id: uuid.UUID | None = None, p: Principal = Depends(require("dispatch.read")),
+            db: Session = Depends(get_db)):
+    return loads.board_summary(db, p, terminal_id)
+
+
+@router.get("/eligible-resources", response_model=eligibility.EligibleResources)
+def eligible_resources(load_id: uuid.UUID, q: str | None = Query(default=None, max_length=100),
+                       terminal_id: uuid.UUID | None = None, p: Principal = Depends(require("dispatch.read")),
+                       db: Session = Depends(get_db)):
+    """Drivers, trucks and trailers for a load, each with the reasons it can or can't take it."""
+    load = get_or_404(db, Load, load_id, "Load")
+    return eligibility.evaluate(db, load, p.today(), datetime.now(UTC), q=q, terminal_id=terminal_id)
+
+
+@router.post("/assignments", response_model=ls.LoadDetail, status_code=201)
+def assign(body: AssignIn, p: Principal = Depends(require("dispatch.assign")), db: Session = Depends(get_db),
+           idempotency_key: Annotated[str | None, Header()] = None):
+    """Assign a planned load. Eligibility is checked again here, inside the transaction that books it."""
     def work():
-        load = lock_load_or_404(db, body.load_id)
-        driver = get_or_404(db, Driver, body.driver_id, "Driver")
-        vehicle = get_or_404(db, Vehicle, body.vehicle_id, "Vehicle")
-        trailer = get_or_404(db, Trailer, body.trailer_id, "Trailer") if body.trailer_id else None
-
-        # A repeated identical request (e.g. double click) is a no-op, not a second assignment.
-        current = db.scalar(select(DispatchAssignment).where(DispatchAssignment.load_id == load.id,
-                                                              DispatchAssignment.status == "active"))
-        if current:
-            if (current.driver_id, current.vehicle_id, current.trailer_id) == (driver.id, vehicle.id, body.trailer_id):
-                return 200, detail_view(db, load).model_dump(mode="json")
-            raise Conflict("This load already has an assignment. Unassign it first.", code="already_assigned")
-        if load.status != "pending":
-            raise Conflict(f"A {load.status} load cannot be assigned")
-
-        first = db.scalar(select(LoadStop).where(LoadStop.load_id == load.id).order_by(LoadStop.seq).limit(1))
-        on = first.appt_start.date() if first and first.appt_start else p.today()
-        if driver.status != "active":
-            raise Conflict("Driver is inactive", code="compliance")
-        _not_expired("Driver CDL", driver.cdl_expiry, on)
-        _not_expired("Driver medical certificate", driver.medical_cert_expiry, on)
-        if vehicle.status != "active":
-            raise Conflict(f"Vehicle {vehicle.unit_number} is {vehicle.status}", code="compliance")
-        _not_expired(f"Vehicle {vehicle.unit_number} insurance", vehicle.insurance_expiry, on)
-        _not_expired(f"Vehicle {vehicle.unit_number} registration", vehicle.registration_expiry, on)
-        needed = TRAILER_FOR.get(load.equipment_type)
-        if needed and trailer is None:
-            raise Conflict(f"A {load.equipment_type.replace('_', ' ')} trailer is required for this load", code="equipment")
-        if trailer:
-            if trailer.status != "active":
-                raise Conflict(f"Trailer {trailer.unit_number} is {trailer.status}", code="compliance")
-            if needed and trailer.type not in needed:
-                raise Conflict(f"Trailer {trailer.unit_number} ({trailer.type}) does not match the load's "
-                               f"equipment ({load.equipment_type})", code="equipment")
-            _not_expired(f"Trailer {trailer.unit_number} insurance", trailer.insurance_expiry, on)
-            _not_expired(f"Trailer {trailer.unit_number} registration", trailer.registration_expiry, on)
-
-        _busy(db, DispatchAssignment.driver_id, driver.id, load.id, f"Driver {driver.last_name}")
-        _busy(db, DispatchAssignment.vehicle_id, vehicle.id, load.id, f"Vehicle {vehicle.unit_number}")
-        if trailer:
-            _busy(db, DispatchAssignment.trailer_id, trailer.id, load.id, f"Trailer {trailer.unit_number}")
-
-        a = DispatchAssignment(organization_id=p.org_id, load_id=load.id, driver_id=driver.id, vehicle_id=vehicle.id,
-                               trailer_id=body.trailer_id, assigned_by=p.user_id)
-        db.add(a)
+        load = loads.lock_load(db, body.load_id)
+        loads.check_version(load, body.version)
+        if load.status not in loads.TRANSITIONS["assign"]:
+            raise loads.illegal(load, "assign")
+        service.assign(db, p, load, body.driver_id, body.vehicle_id, body.trailer_id, reason=body.reason)
         db.flush()
-        change_status(db, p, load, "assigned", f"Assigned to {driver.first_name} {driver.last_name}, "
-                                               f"truck {vehicle.unit_number}")
-        audit(db, p, "dispatch.assigned", "load", load.id, body.model_dump(mode="json"))
-        return 201, detail_view(db, load).model_dump(mode="json")
-
-    return run_idempotent(db, p, idempotency_key, "dispatch.assign", body.model_dump(mode="json"), work)
+        return 201, loads.load_detail(db, p, load.id)
+    return run_idempotent(db, p, idempotency_key, "POST /dispatch/assignments", body.model_dump(mode="json"), work)
 
 
-@router.delete("/assignments/{load_id}", response_model=ls.LoadDetail)
-def unassign(load_id: uuid.UUID, p: Principal = Depends(require("dispatch:write")), db=Depends(get_db)):
-    load = lock_load_or_404(db, load_id)
-    if load.status != "assigned":
-        raise Conflict(f"Only an assigned (not yet dispatched) load can be unassigned; this load is {load.status}")
-    for a in db.scalars(select(DispatchAssignment).where(DispatchAssignment.load_id == load.id,
-                                                          DispatchAssignment.status == "active")):
-        a.status = "cancelled"
-    db.flush()
-    change_status(db, p, load, "pending", "Unassigned")
-    audit(db, p, "dispatch.unassigned", "load", load.id)
+def _active(db: Session, assignment_id: uuid.UUID) -> tuple[DispatchAssignment, Load]:
+    assignment = db.get(DispatchAssignment, assignment_id)
+    if assignment is None:
+        raise NotFound("Assignment not found")
+    load = loads.lock_load(db, assignment.load_id)
+    db.refresh(assignment)
+    if assignment.status != "active":
+        raise Conflict("This assignment has already been replaced or released. Refresh to see the current one.",
+                       code="STATE_CONFLICT")
+    return assignment, load
+
+
+@router.patch("/assignments/{assignment_id}", response_model=ls.LoadDetail)
+def reassign(assignment_id: uuid.UUID, body: ReassignIn, p: Principal = Depends(require("dispatch.assign")),
+             db: Session = Depends(get_db)):
+    """Swap the driver, truck or trailer. The old assignment is kept as history."""
+    assignment, load = _active(db, assignment_id)
+    loads.check_version(load, body.version)
+    if load.status not in loads.REASSIGNABLE:
+        raise loads.illegal(load, "reassign")
+    sent = body.model_fields_set
+    service.assign(
+        db, p, load, body.driver_id or assignment.driver_id, body.vehicle_id or assignment.vehicle_id,
+        body.trailer_id if "trailer_id" in sent else assignment.trailer_id, reason=body.reason)
     db.commit()
-    return detail_view(db, load)
+    return loads.load_detail(db, p, load.id)
 
 
-@router.post("/loads/{load_id}/dispatch", response_model=ls.LoadDetail)
-def send_to_driver(load_id: uuid.UUID, p: Principal = Depends(require("dispatch:write")), db=Depends(get_db)):
-    """Release an assigned load to the driver (it then appears in the driver app)."""
-    load = lock_load_or_404(db, load_id)
-    if load.status != "assigned" or assignment_view(db, load.id) is None:
-        raise Conflict("Only an assigned load can be dispatched")
-    change_status(db, p, load, "dispatched", "Dispatched to driver")
-    audit(db, p, "dispatch.dispatched", "load", load.id)
+@router.post("/assignments/{assignment_id}/release", response_model=ls.LoadDetail)
+def release(assignment_id: uuid.UUID, body: ReleaseIn, p: Principal = Depends(require("dispatch.assign")),
+            db: Session = Depends(get_db)):
+    """Take the driver and equipment off a load that has not been dispatched. It goes back to planned."""
+    _, load = _active(db, assignment_id)
+    loads.check_version(load, body.version)
+    service.unassign(db, p, load, reason=body.reason)
     db.commit()
-    return detail_view(db, load)
-
-
-BOARD_COLUMNS = ("pending", "assigned", "dispatched", "in_transit", "delivered")
-BOARD_LIMIT = 500
-
-
-@router.get("/board", response_model=ls.Board)
-def board(p: Principal = Depends(require("loads:read")), db=Depends(get_db)):
-    """Open work grouped by stage, oldest first. A fixed number of queries regardless of how many loads are open."""
-    loads = list(db.scalars(select(Load).where(Load.status.in_(BOARD_COLUMNS))
-                            .order_by(Load.created_at, Load.id).limit(BOARD_LIMIT + 1)))
-    truncated = len(loads) > BOARD_LIMIT
-    loads = loads[:BOARD_LIMIT]
-    assignments = assignment_views(db, [ld.id for ld in loads])
-    columns: dict[str, list[ls.BoardCard]] = {c: [] for c in BOARD_COLUMNS}
-    for summary in summarize(db, loads):
-        columns[summary.status].append(ls.BoardCard(**summary.model_dump(), assignment=assignments.get(summary.id)))
-    return ls.Board(columns=columns, truncated=truncated)
+    return loads.load_detail(db, p, load.id)

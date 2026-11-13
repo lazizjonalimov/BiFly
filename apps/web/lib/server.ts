@@ -3,8 +3,8 @@ import "server-only";
 import type { cookies } from "next/headers";
 import { allowEmbedding } from "@/lib/embedding";
 
-export const API_URL = (process.env.TMS_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
-export const SESSION_COOKIE = "tms_session";
+export const API_URL = (process.env.BIFLY_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+export const SESSION_COOKIE = "bifly_session";
 
 type CookieJar = Awaited<ReturnType<typeof cookies>>;
 

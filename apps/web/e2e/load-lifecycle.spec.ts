@@ -45,7 +45,7 @@ test("a load goes from order to paid invoice", async ({ page }) => {
   });
 
   await test.step("the API token is not reachable from page scripts", async () => {
-    expect(await page.evaluate(() => document.cookie)).not.toContain("tms_session");
+    expect(await page.evaluate(() => document.cookie)).not.toContain("bifly_session");
     expect(await page.evaluate(() => Object.keys(localStorage).length)).toBe(0);
   });
 

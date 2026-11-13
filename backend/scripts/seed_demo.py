@@ -1,18 +1,21 @@
-"""Create a demo company with realistic data, by calling the running API (so every business rule applies).
+"""Create a demo account with realistic data, by calling the running API (so every business rule applies).
 
     python scripts/seed_demo.py                       # API at http://localhost:8000
     python scripts/seed_demo.py --api http://host:8000 --email me@example.com --password 'long passphrase'
 
-Prints the sign-in details when it finishes. Development use only.
+The account gets two companies, to show the company switcher: one busy, one freshly opened with the first
+company's team, customers and equipment copied across. Prints the sign-in details when it finishes.
+Development use only.
 """
 import argparse
 import secrets
 import sys
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 
-PDF = b"%PDF-1.4\n% demo proof of delivery\n"
+PDF = b"%PDF-1.4\n% demo document\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
 
 
 def main() -> int:
@@ -32,6 +35,9 @@ def main() -> int:
                 sys.exit(f"{method} {url} -> {r.status_code}: {r.text}")
             return r.json() if r.content else None
 
+        def post(url: str, body: dict | None = None):
+            return call("POST", url, json=body or {})
+
         try:
             signup = http.post("/auth/signup", json={
                 "organization_name": args.company, "full_name": "Olivia Owner", "email": args.email,
@@ -44,148 +50,244 @@ def main() -> int:
         if signup.status_code >= 400:
             sys.exit(f"Sign-up failed: {signup.status_code} {signup.text}")
         http.headers["Authorization"] = "Bearer " + signup.json()["access_token"]
+        first_company = signup.json()["organization"]["id"]
 
-        def post(url: str, body: dict | None = None):
-            return call("POST", url, json=body or {})
+        now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+        at = lambda days, hours=0: (now + timedelta(days=days, hours=hours)).isoformat()  # noqa: E731
+        date = lambda days: (now + timedelta(days=days)).date().isoformat()  # noqa: E731
 
-        today = datetime.now(UTC).replace(hour=14, minute=0, second=0, microsecond=0)
-        day = lambda n: (today + timedelta(days=n)).isoformat()  # noqa: E731
-        date = lambda n: (today + timedelta(days=n)).date().isoformat()  # noqa: E731
+        call("PATCH", "/organization", json={
+            "legal_name": f"{args.company} LLC", "phone": "312-555-0100", "email": "billing@northline.example",
+            "address": "1200 W Cermak Rd", "city": "Chicago", "state": "IL", "postal_code": "60608"})
 
-        # --- people -----------------------------------------------------------------------------------
+        # --- people and places ------------------------------------------------------------------------
         for name, role in (("Devon Dispatcher", "dispatcher"), ("Ada Accountant", "accountant"),
-                           ("Sam Safety", "safety_manager")):
-            post("/users", {"full_name": name, "role": role, "password": secrets.token_urlsafe(12),
-                            "email": f"{name.split()[0].lower()}-{secrets.token_hex(3)}@demo.example"})
-        driver_login = post("/users", {"full_name": "Dana Reyes", "role": "driver", "password": password,
-                                       "email": f"dana-{secrets.token_hex(3)}@demo.example"})
+                           ("Sam Safety", "safety_manager"), ("Fran Fleet", "fleet_manager")):
+            post("/members", {"full_name": name, "role": role, "password": secrets.token_urlsafe(12),
+                              "email": f"{name.split()[0].lower()}-{secrets.token_hex(3)}@demo.example"})
+        driver_email = f"dana-{secrets.token_hex(3)}@demo.example"
+        driver_login = post("/members", {"full_name": "Dana Reyes", "role": "driver", "password": password,
+                                         "email": driver_email})
+        chicago = post("/terminals", {"name": "Chicago yard", "code": "CHI", "city": "Chicago", "state": "IL"})
+        dallas = post("/terminals", {"name": "Dallas yard", "code": "DAL", "city": "Dallas", "state": "TX"})
 
-        # --- master data ------------------------------------------------------------------------------
+        # --- customers --------------------------------------------------------------------------------
         customers = [post("/customers", c) for c in (
-            {"name": "Globex Manufacturing", "billing_email": "ap@globex.example", "phone": "312-555-0142",
-             "address": "400 W Fulton St, Chicago, IL", "payment_terms_days": 30},
-            {"name": "Initech Foods", "billing_email": "payables@initech.example", "phone": "214-555-0199",
+            {"name": "Globex Manufacturing", "code": "GLOBEX", "legal_name": "Globex Manufacturing Inc.",
+             "billing_email": "ap@globex.example", "phone": "312-555-0142", "billing_address": "400 W Fulton St",
+             "billing_city": "Chicago", "billing_state": "IL", "billing_postal_code": "60661",
+             "payment_terms_days": 30, "credit_limit": "75000.00"},
+            {"name": "Initech Foods", "code": "INITECH", "billing_email": "payables@initech.example",
+             "phone": "214-555-0199", "billing_city": "Indianapolis", "billing_state": "IN",
              "payment_terms_days": 15},
-            {"name": "Umbrella Paper Co", "billing_email": "billing@umbrella.example", "payment_terms_days": 45},
+            {"name": "Umbrella Paper Co", "code": "UMBRELLA", "billing_email": "billing@umbrella.example",
+             "billing_city": "Milwaukee", "billing_state": "WI", "payment_terms_days": 45},
         )]
+        globex, initech, umbrella = customers
+        post(f"/customers/{globex['id']}/contacts", {"name": "Grace Hopper", "title": "Logistics manager",
+                                                      "email": "grace@globex.example", "phone": "312-555-0143",
+                                                      "kind": "operations", "is_primary": True})
+        post(f"/customers/{globex['id']}/contacts", {"name": "Bill Payer", "title": "Accounts payable",
+                                                      "email": "ap@globex.example", "kind": "billing"})
+        post(f"/customers/{globex['id']}/addresses", {"label": "Globex Plant 4", "kind": "facility",
+                                                       "address": "4100 S Ashland Ave", "city": "Chicago",
+                                                       "state": "IL", "postal_code": "60609",
+                                                       "notes": "Dock 12. Check in at the guard shack."})
+        post(f"/customers/{initech['id']}/contacts", {"name": "Peter Gibbons", "email": "peter@initech.example",
+                                                       "kind": "operations", "is_primary": True})
+
+        # --- drivers ----------------------------------------------------------------------------------
         drivers = [post("/drivers", d) for d in (
-            {"first_name": "Dana", "last_name": "Reyes", "phone": "312-555-0101", "cdl_number": "D1234567",
-             "cdl_state": "IL", "cdl_expiry": date(900), "medical_cert_expiry": date(400),
-             "user_id": driver_login["user_id"]},
-            {"first_name": "Marcus", "last_name": "Hill", "phone": "312-555-0102", "cdl_number": "H7654321",
-             "cdl_state": "IL", "cdl_expiry": date(600), "medical_cert_expiry": date(21)},      # expiring soon
-            {"first_name": "Priya", "last_name": "Nair", "phone": "469-555-0103", "cdl_number": "N2468101",
-             "cdl_state": "TX", "cdl_expiry": date(1200), "medical_cert_expiry": date(300)},
-            {"first_name": "Tom", "last_name": "Becker", "phone": "317-555-0104", "cdl_number": "B1357911",
-             "cdl_state": "IN", "cdl_expiry": date(-12), "medical_cert_expiry": date(200)},     # expired CDL
+            {"first_name": "Dana", "last_name": "Reyes", "phone": "312-555-0101", "employee_number": "E-1001",
+             "cdl_number": "D1234567", "cdl_state": "IL", "cdl_class": "A", "cdl_expiry": date(900),
+             "medical_cert_expiry": date(400), "hire_date": date(-800), "terminal_id": chicago["id"],
+             "pay_type": "per_mile", "pay_rate": "0.62", "user_id": driver_login["user_id"]},
+            {"first_name": "Marcus", "last_name": "Hill", "phone": "312-555-0102", "employee_number": "E-1002",
+             "cdl_number": "H7654321", "cdl_state": "IL", "cdl_class": "A", "cdl_expiry": date(600),
+             "medical_cert_expiry": date(21), "hire_date": date(-420), "terminal_id": chicago["id"],
+             "pay_type": "per_mile", "pay_rate": "0.58"},                                   # medical card expiring
+            {"first_name": "Priya", "last_name": "Nair", "phone": "469-555-0103", "employee_number": "E-1003",
+             "cdl_number": "N2468101", "cdl_state": "TX", "cdl_class": "A", "cdl_expiry": date(1200),
+             "medical_cert_expiry": date(300), "hire_date": date(-200), "terminal_id": dallas["id"],
+             "driver_type": "owner_operator", "pay_type": "percent", "pay_rate": "78"},
+            {"first_name": "Tom", "last_name": "Becker", "phone": "317-555-0104", "employee_number": "E-1004",
+             "cdl_number": "B1357911", "cdl_state": "IN", "cdl_class": "A", "cdl_expiry": date(-12),
+             "medical_cert_expiry": date(200), "terminal_id": chicago["id"]},                # expired licence
+            {"first_name": "Lena", "last_name": "Ortiz", "phone": "214-555-0105", "employee_number": "E-1005",
+             "cdl_number": "O9080706", "cdl_state": "TX", "cdl_class": "A", "cdl_expiry": date(700),
+             "medical_cert_expiry": date(500), "terminal_id": dallas["id"], "pay_type": "flat", "pay_rate": "350"},
         )]
+        post(f"/drivers/{drivers[0]['id']}/qualifications", {"type": "mvr", "issued_on": date(-200),
+                                                              "expires_on": date(165), "required": True})
+        post(f"/drivers/{drivers[0]['id']}/qualifications", {"type": "hazmat", "issued_on": date(-400),
+                                                              "expires_on": date(25), "reference": "HM-22871"})
+        post(f"/drivers/{drivers[2]['id']}/qualifications", {"type": "drug_test", "issued_on": date(-190),
+                                                              "expires_on": date(175), "required": True})
+
+        # --- equipment --------------------------------------------------------------------------------
+        good = {"insurance_expiry": date(200), "registration_expiry": date(150), "inspection_expiry": date(120)}
         trucks = [post("/vehicles", v) for v in (
-            {"unit_number": "T-101", "make": "Freightliner", "model": "Cascadia", "year": 2023, "plate": "P123456",
-             "insurance_expiry": date(200), "registration_expiry": date(150)},
-            {"unit_number": "T-102", "make": "Kenworth", "model": "T680", "year": 2022, "plate": "P234567",
-             "insurance_expiry": date(200), "registration_expiry": date(18)},                    # expiring soon
-            {"unit_number": "T-103", "make": "Volvo", "model": "VNL 760", "year": 2021, "plate": "P345678",
-             "insurance_expiry": date(200), "registration_expiry": date(250)},
-            {"unit_number": "T-104", "make": "Peterbilt", "model": "579", "year": 2020, "status": "maintenance"},
+            {"unit_number": "101", "vin": "1FUJGLDR5CLBP8834", "make": "Freightliner", "model": "Cascadia",
+             "year": 2023, "plate": "P123456", "plate_state": "IL", "odometer": 184200,
+             "terminal_id": chicago["id"], **good},
+            {"unit_number": "102", "make": "Kenworth", "model": "T680", "year": 2022, "plate": "P234567",
+             "plate_state": "IL", "odometer": 262900, "terminal_id": chicago["id"],
+             **{**good, "registration_expiry": date(18)}},                                   # expiring soon
+            {"unit_number": "103", "make": "Volvo", "model": "VNL 760", "year": 2021, "plate": "T345678",
+             "plate_state": "TX", "odometer": 341050, "terminal_id": dallas["id"], "ownership": "leased", **good},
+            {"unit_number": "104", "make": "Peterbilt", "model": "579", "year": 2020, "plate": "P456789",
+             "plate_state": "IL", "status": "in_maintenance", "terminal_id": chicago["id"], **good},
+            {"unit_number": "105", "make": "Mack", "model": "Anthem", "year": 2024, "plate": "T567890",
+             "plate_state": "TX", "terminal_id": dallas["id"], "ownership": "owner_operator",
+             **{**good, "inspection_expiry": date(-5)}},                                     # inspection lapsed
         )]
         trailers = [post("/trailers", t) for t in (
-            {"unit_number": "TR-53A", "type": "dry_van", "plate": "T111222"},
-            {"unit_number": "TR-53B", "type": "dry_van", "plate": "T222333"},
-            {"unit_number": "TR-53C", "type": "dry_van", "plate": "T333444"},
-            {"unit_number": "RF-48A", "type": "reefer", "plate": "T444555"},
+            {"unit_number": "5301", "type": "dry_van", "length_ft": 53, "plate": "TR11122", "plate_state": "IL",
+             "terminal_id": chicago["id"], **good},
+            {"unit_number": "5302", "type": "dry_van", "length_ft": 53, "plate": "TR22233", "plate_state": "IL",
+             "terminal_id": chicago["id"], **good},
+            {"unit_number": "5303", "type": "dry_van", "length_ft": 53, "plate": "TR33344", "plate_state": "TX",
+             "terminal_id": dallas["id"], **good},
+            {"unit_number": "R4801", "type": "reefer", "length_ft": 48, "plate": "TR44455", "plate_state": "IN",
+             "terminal_id": chicago["id"], **good},
+            {"unit_number": "F4802", "type": "flatbed", "length_ft": 48, "terminal_id": dallas["id"], **good},
         )]
 
+        def upload_doc(entity_type: str, entity_id: str, doc_type: str, filename: str, **extra):
+            intent = post("/documents/upload-intents", {
+                "filename": filename, "content_type": "application/pdf", "size_bytes": len(PDF), "type": doc_type,
+                "entity_type": entity_type, "entity_id": entity_id, **extra})
+            call("PUT", intent["upload"]["url"], content=PDF, headers=intent["upload"]["headers"])
+            return post(f"/documents/{intent['document']['id']}/complete")
+
+        upload_doc("vehicle", trucks[0]["id"], "insurance", "policy-truck-101.pdf", expires_on=date(200))
+        upload_doc("driver", drivers[0]["id"], "license", "cdl-dana-reyes.pdf", expires_on=date(900))
+        upload_doc("customer", globex["id"], "other", "globex-carrier-agreement.pdf")
+
         # --- loads at every stage ---------------------------------------------------------------------
-        def load(customer, origin, dest, pickup_in_days, rate, commodity, weight, equipment="dry_van", ref=None):
-            (o_name, o_city, o_state), (d_name, d_city, d_state) = origin, dest
-            return post("/loads", {
-                "customer_id": customer["id"], "commodity": commodity, "weight_lbs": weight, "customer_rate": rate,
-                "equipment_type": equipment, "reference": ref,
-                "stops": [
-                    {"type": "pickup", "name": o_name, "city": o_city, "state": o_state, "appt_start": day(pickup_in_days)},
-                    {"type": "delivery", "name": d_name, "city": d_city, "state": d_state,
-                     "appt_start": day(pickup_in_days + 2)},
-                ]})
-
-        def assign(ld, driver, truck, trailer):
-            return post("/dispatch/assignments", {"load_id": ld["id"], "driver_id": driver["id"],
-                                                  "vehicle_id": truck["id"], "trailer_id": trailer["id"]})
-
-        def work_stops(ld, upto: int):
-            """Record arrive/depart for the first `upto` stop events (4 = fully delivered)."""
-            events = [(s, e) for s in ld["stops"] for e in ("arrived", "departed")][:upto]
-            for stop, event in events:
-                post(f"/loads/{ld['id']}/stops/{stop['id']}/events", {"event": event})
-
-        def deliver_and_confirm(ld):
-            work_stops(ld, 4)
-            call("POST", f"/loads/{ld['id']}/documents", data={"type": "pod"},
-                 files={"file": ("pod.pdf", PDF, "application/pdf")})
-            post(f"/loads/{ld['id']}/confirm-delivery")
-
-        globex, initech, umbrella = customers
         chi, dal = ("Globex Plant 4", "Chicago", "IL"), ("Lone Star DC", "Dallas", "TX")
         ind, atl = ("Initech Cold Storage", "Indianapolis", "IN"), ("Peachtree Grocers DC", "Atlanta", "GA")
         mke, stl = ("Umbrella Mill", "Milwaukee", "WI"), ("Gateway Print Works", "St. Louis", "MO")
+        mem, kc = ("Bluff City Crossdock", "Memphis", "TN"), ("Heartland Distribution", "Kansas City", "MO")
 
-        # paid in full
-        ld = load(globex, chi, dal, -9, "2850.00", "Machine parts", 38000, ref="PO-88121")
-        assign(ld, drivers[0], trucks[0], trailers[0])
-        post(f"/dispatch/loads/{ld['id']}/dispatch")
-        deliver_and_confirm(ld)
-        inv = post("/invoices", {"load_id": ld["id"]})
-        post(f"/invoices/{inv['id']}/payments", {"amount": "2850.00", "method": "ach", "reference": "ACH-55021"})
+        def load(customer, origin, dest, pickup, rate, commodity, weight, miles, *, equipment="dry_van", ref=None,
+                 terminal=chicago, transit_days=1.5, charges=(), status="planned"):
+            (o_name, o_city, o_state), (d_name, d_city, d_state) = origin, dest
+            return post("/loads", {
+                "customer_id": customer["id"], "terminal_id": terminal["id"], "commodity": commodity,
+                "weight_lbs": weight, "miles": miles, "customer_rate": rate, "equipment_type": equipment,
+                "reference": ref, "status": status, "charges": list(charges),
+                "items": [{"description": commodity, "quantity": 22, "unit": "pallets", "weight_lbs": weight}],
+                "stops": [
+                    {"type": "pickup", "name": o_name, "city": o_city, "state": o_state,
+                     "appt_start": at(pickup), "appt_end": at(pickup, 2)},
+                    {"type": "delivery", "name": d_name, "city": d_city, "state": d_state,
+                     "appt_start": at(pickup + transit_days), "appt_end": at(pickup + transit_days, 3)},
+                ]})
 
-        # invoiced, part paid
-        ld = load(umbrella, mke, stl, -6, "1450.00", "Paper rolls", 41000, ref="UP-4471")
-        assign(ld, drivers[2], trucks[2], trailers[1])
-        post(f"/dispatch/loads/{ld['id']}/dispatch")
-        deliver_and_confirm(ld)
-        inv = post("/invoices", {"load_id": ld["id"]})
-        post(f"/invoices/{inv['id']}/payments", {"amount": "500.00", "method": "check", "reference": "CHK 10442"})
+        def assign(ld, driver, truck, trailer):
+            return post("/dispatch/assignments", {
+                "load_id": ld["id"], "driver_id": driver["id"], "vehicle_id": truck["id"],
+                "trailer_id": trailer["id"], "version": ld["version"]})
 
-        # completed, ready to invoice
-        ld = load(globex, chi, stl, -4, "1100.00", "Steel fasteners", 22000, ref="PO-88140")
-        assign(ld, drivers[0], trucks[0], trailers[0])
-        post(f"/dispatch/loads/{ld['id']}/dispatch")
-        deliver_and_confirm(ld)
+        def act(ld, action, **extra):
+            return post(f"/loads/{ld['id']}/transitions", {"action": action, "version": ld["version"], **extra})
 
-        # delivered by the driver, waiting for a POD and dispatcher confirmation
-        ld = load(umbrella, mke, chi, -2, "620.00", "Corrugated sheets", 18000)
-        assign(ld, drivers[2], trucks[2], trailers[1])
-        post(f"/dispatch/loads/{ld['id']}/dispatch")
-        work_stops(ld, 4)
+        def run(ld, *steps):
+            """Each step is (action, hours ago it happened)."""
+            for action, hours_ago in steps:
+                ld = act(ld, action, **({"occurred_at": at(0, -hours_ago)} if hours_ago is not None else {}))
+            return ld
 
-        # in transit
-        ld = load(globex, chi, dal, -1, "2900.00", "Machine parts", 36500, ref="PO-88163")
-        assign(ld, drivers[0], trucks[0], trailers[0])
-        post(f"/dispatch/loads/{ld['id']}/dispatch")
-        work_stops(ld, 2)
+        def delivered(ld, driver, truck, trailer, finished_hours_ago: float):
+            ld = assign(ld, driver, truck, trailer)
+            h = finished_hours_ago
+            return run(ld, ("dispatch", None), ("arrive", h + 30), ("depart", h + 28), ("arrive", h + 2),
+                       ("depart", h))
 
-        # dispatched, not yet picked up
-        ld = load(initech, ind, atl, 0, "2300.00", "Frozen vegetables", 39000, equipment="reefer", ref="IF-20931")
-        assign(ld, drivers[2], trucks[2], trailers[3])
-        post(f"/dispatch/loads/{ld['id']}/dispatch")
+        def completed(ld, driver, truck, trailer, finished_hours_ago: float):
+            ld = delivered(ld, driver, truck, trailer, finished_hours_ago)
+            upload_doc("load", ld["id"], "pod", f"pod-{ld['load_number']}.pdf")
+            upload_doc("load", ld["id"], "bol", f"bol-{ld['load_number']}.pdf")
+            return act(call("GET", f"/loads/{ld['id']}"), "approve_pod")
 
-        # assigned, not yet released to the driver
-        ld = load(umbrella, mke, stl, 1, "1480.00", "Paper rolls", 40500, ref="UP-4502")
-        assign(ld, drivers[1], trucks[1], trailers[2])
+        def invoice(customer, *loads, issue=True):
+            inv = post("/invoices", {"customer_id": customer["id"], "load_ids": [x["id"] for x in loads]})
+            return post(f"/invoices/{inv['id']}/issue") if issue else inv
 
-        # still need a driver
-        load(globex, chi, atl, 1, "2150.00", "Machine parts", 30000, ref="PO-88170")
-        load(initech, ind, dal, 2, "2650.00", "Dairy", 37000, equipment="reefer", ref="IF-20958")
-        load(umbrella, mke, chi, 3, "640.00", "Corrugated sheets", 17500)
+        def pay(customer, amount, inv, applied, method="ach", reference=None):
+            # "Today" is the company's date, which can be a day behind UTC.
+            received = datetime.now(ZoneInfo(args.timezone)).date().isoformat()
+            return post("/payments", {"customer_id": customer["id"], "amount": amount, "received_on": received,
+                                      "method": method, "reference": reference,
+                                      "allocations": [{"invoice_id": inv["id"], "amount": applied}]})
 
-    print(f"""
-Demo company "{args.company}" is ready.
+        # Finished work, oldest first (each one frees the driver before the next begins).
+        a = completed(load(globex, chi, dal, -9, "2850.00", "Machine parts", 38000, 925, ref="PO-88121"),
+                      drivers[0], trucks[0], trailers[0], 170)
+        b = completed(load(umbrella, mke, stl, -7, "1450.00", "Paper rolls", 41000, 375, ref="UP-4471",
+                           charges=[{"type": "detention", "quantity": "2", "rate": "75.00",
+                                     "description": "2 h at receiver"}]),
+                      drivers[2], trucks[2], trailers[2], 120)
+        c = completed(load(globex, chi, stl, -5, "1100.00", "Steel fasteners", 22000, 300, ref="PO-88140"),
+                      drivers[0], trucks[0], trailers[0], 80)
+        d = completed(load(initech, ind, atl, -4, "2300.00", "Frozen vegetables", 36000, 535, equipment="reefer",
+                           ref="IN-20931", charges=[{"type": "fuel_surcharge", "rate": "140.00"}]),
+                      drivers[4], trucks[2], trailers[3], 40)
+        # This one stays completed and unbilled, so it shows up as ready to invoice.
+        completed(load(globex, chi, kc, -3, "1650.00", "Machine parts", 30000, 510, ref="PO-88163"),
+                  drivers[0], trucks[0], trailers[0], 20)
 
-  Sign in at   http://localhost:3000
-  Email        {args.email}
-  Password     {password}
+        paid = invoice(globex, a)
+        pay(globex, "2850.00", paid, "2850.00", reference="ACH-55021")                      # paid in full
+        part = invoice(umbrella, b)
+        pay(umbrella, "600.00", part, "600.00", method="check", reference="CHK 10442")       # part paid
+        invoice(globex, c)                                                                   # issued, unpaid
+        invoice(initech, d, issue=False)                                                     # still a draft
 
-  10 loads across every stage, 3 customers, 4 drivers, 4 trucks, 4 trailers.
-  The driver login for Dana Reyes uses the same password (driver app endpoints: /api/v1/driver/...).
-""")
+        # Delivered, waiting for paperwork; and delivered with the POD waiting for review.
+        delivered(load(umbrella, mke, kc, -2.5, "1900.00", "Paper rolls", 40000, 565, ref="UP-4490"),
+                  drivers[2], trucks[2], trailers[2], 6)
+        review = delivered(load(initech, ind, mem, -2, "1750.00", "Dry groceries", 34000, 465, ref="IN-20944"),
+                           drivers[4], trucks[0], trailers[1], 3)
+        upload_doc("load", review["id"], "pod", f"pod-{review['load_number']}.pdf")
+
+        # On the road right now.
+        rolling = assign(load(globex, chi, dal, -0.6, "2900.00", "Machine parts", 39000, 925, ref="PO-88170"),
+                         drivers[0], trucks[0], trailers[0])
+        rolling = run(rolling, ("dispatch", None), ("arrive", 13), ("depart", 11))
+        post(f"/loads/{rolling['id']}/tracking", {"city": "Springfield", "state": "MO", "note": "Rolling, on time"})
+        post(f"/loads/{rolling['id']}/notes", {"body": "Receiver wants a call 1 hour before arrival."})
+        at_dock = assign(load(initech, mem, atl, -0.2, "1500.00", "Dry groceries", 30000, 385, ref="IN-20950",
+                              terminal=dallas),
+                         drivers[2], trucks[2], trailers[2])
+        run(at_dock, ("dispatch", None), ("arrive", 1))
+
+        # Planned work: assigned and waiting, unassigned, late, and one on hold.
+        assign(load(umbrella, mke, stl, 2, "1500.00", "Paper rolls", 41000, 375, ref="UP-4502"),
+               drivers[1], trucks[1], trailers[1])
+        load(globex, chi, kc, 0.3, "1700.00", "Machine parts", 28000, 510, ref="PO-88181")   # picks up today
+        load(initech, ind, atl, 3, "2350.00", "Frozen vegetables", 36000, 535, equipment="reefer", ref="IN-20961")
+        load(globex, dal, chi, 4, "2600.00", "Returned racks", 18000, 925, ref="PO-88190", terminal=dallas)
+        load(umbrella, stl, mke, -0.3, "1300.00", "Empty cores", 12000, 375, ref="UP-4510")  # late, no driver
+        held = assign(load(initech, mem, kc, 5, "1250.00", "Dry groceries", 31000, 450, ref="IN-20970",
+                           terminal=dallas), drivers[4], trucks[2], trailers[2])
+        act(held, "hold", reason="Customer is confirming the delivery date")
+        load(globex, chi, atl, 6, "0", "To be confirmed", None, None, status="draft")
+        cancelled = load(umbrella, mke, dal, 7, "2400.00", "Paper rolls", 40000, 1010, ref="UP-4515")
+        act(cancelled, "cancel", reason="Shipper cancelled the order")
+
+        # --- a second company under the same profile --------------------------------------------------
+        second = post("/account/companies", {
+            "name": "Northline Logistics South", "dot_number": "2718281", "mc_number": "MC-161803",
+            "copy_from": first_company, "include": ["team", "terminals", "customers", "drivers", "vehicles",
+                                                    "trailers"]})
+
+    print("Demo account created.")
+    print(f"  Sign in as owner:   {args.email}")
+    print(f"  Sign in as driver:  {driver_email}")
+    print(f"  Password (both):    {password}")
+    print(f"  Companies:          {args.company} (busy), {second['name']} (new, with setup copied)")
     return 0
 
 

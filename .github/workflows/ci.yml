@@ -18,8 +18,8 @@ env:
   POSTGRES_USER: postgres
   PGHOST: localhost
   PGPASSWORD: postgres
-  TMS_OWNER_PASSWORD: tms_owner_dev
-  TMS_APP_PASSWORD: tms_app_dev
+  BIFLY_OWNER_PASSWORD: bifly_owner_dev
+  BIFLY_APP_PASSWORD: bifly_app_dev
 
 jobs:
   backend:
@@ -76,9 +76,12 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
-  e2e:
-    name: End-to-end (browser)
-    needs: [backend, web]
+  # Boots the real stack the way production runs it (migrations as the owner, the API as the restricted role)
+  # and drives it over HTTP with the demo script, which touches every module. The browser journeys return
+  # here when the rebuilt web application lands.
+  smoke:
+    name: API smoke test (real server)
+    needs: [backend]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -92,6 +95,9 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -99,42 +105,22 @@ jobs:
           python-version: "3.13"
           cache: pip
           cache-dependency-path: backend/requirements*.txt
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
       - name: Database and API
         run: |
-          sh infrastructure/docker/postgres/init.sh
-          cd backend
-          pip install -r requirements.txt
+          sh ../infrastructure/docker/postgres/init.sh
+          pip install -r requirements-dev.txt
           alembic upgrade head
           nohup uvicorn app.main:app --port 8000 > ../api.log 2>&1 &
-      - name: Web app
-        working-directory: apps/web
-        run: |
-          npm ci
-          npm run build
-          nohup npm run start > ../../web.log 2>&1 &
-      - name: Wait for the stack
-        run: |
-          for url in http://localhost:8000/healthz http://localhost:3000/login; do
-            for i in $(seq 1 30); do curl -fsS -o /dev/null "$url" && break || sleep 2; done
-            curl -fsS -o /dev/null "$url"
-          done
-      - name: Browser test
-        working-directory: apps/web
-        run: |
-          npx playwright install --with-deps chromium
-          npm run e2e
-      - name: Keep logs and traces on failure
+          for i in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:8000/healthz && break || sleep 2; done
+          curl -fsS -o /dev/null http://localhost:8000/healthz
+      - name: Build a demo account through the API
+        run: python scripts/seed_demo.py
+      - name: The contract is served
+        run: curl -fsS http://localhost:8000/api/openapi.json | python -c "import json, sys; print(len(json.load(sys.stdin)['paths']), 'paths')"
+      - name: Keep the API log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-failure
-          path: |
-            api.log
-            web.log
-            apps/web/test-results/
+          name: api-log
+          path: api.log
           retention-days: 7

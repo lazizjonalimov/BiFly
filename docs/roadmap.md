@@ -1,73 +1,42 @@
 # Roadmap
 
-Status of the implementation plan. "Done" means built, tested, and working end to end in this repository.
+Status against the build order in the engineering instructions. "Done" means built, tested and working in
+this repository. The web column is the screens; the API column is the rules behind them.
 
-## Phase 1 — Technical foundation
+| # | Step | API | Web |
+| --- | --- | --- | --- |
+| 1 | Audit and foundation | Done: [audit](implementation-audit.md), [decisions](decisions) | Rebuild in progress |
+| 2 | Design system and application shell | n/a | Not started |
+| 3 | Sign-in and company switching | Done | Not started |
+| 4 | Customers | Done | Not started |
+| 5 | Drivers and equipment | Done | Not started |
+| 6 | Loads | Done | Not started |
+| 7 | Dispatch board and assignment | Done | Not started |
+| 8 | Documents | Done | Not started |
+| 9 | Safety and compliance | Done: status, expirations queue, blocking. Inspections not started | Not started |
+| 10 | Fleet and maintenance | Not started (work orders, out-of-service flow) | Not started |
+| 11 | Finance | Done: invoices, payments, aging. Not started: expenses, fuel, driver settlements | Not started |
+| 12 | Reports and administration | Done: dashboard, exceptions, search, four reports, CSV, audit log, role matrix | Not started |
 
-| Item | Status |
-| --- | --- |
-| Monorepo, FastAPI backend, Next.js web app | Done |
-| PostgreSQL schema and migrations | Done |
-| Multi-tenancy with row-level security | Done |
-| Authentication, roles and permissions | Done (local accounts; Cognito and MFA not started) |
-| Docker images and local Docker Compose | Done |
-| AWS staging environment, Terraform | Not started |
-| Expo driver app scaffold | Not started |
+## What "Done" covers in the API
 
-## Phase 2 — Master data
+- **Multi-company profile.** Up to ten active companies per account; create by copying setup; archive and
+  restore; switch.
+- **Load lifecycle.** Twelve states, one transition function, immutable history, version checks.
+- **Dispatch.** Eligibility with reasons, overlap detection, concurrency-safe assignment, reassignment.
+- **Finance.** Draft, issue, void; payments with allocations and reversal; receivables aging.
+- **Platform.** Row-level security on every table, role permissions, audit log, idempotency, error and
+  list contracts, encrypted licence numbers.
 
-| Item | Status |
-| --- | --- |
-| Companies and users | Done |
-| Customers | Done (single record; separate contacts and addresses not started) |
-| Drivers with CDL and medical tracking | Done |
-| Trucks and trailers with insurance and registration tracking | Done |
-| Documents | Done for load documents (driver and equipment documents not started) |
-| Compliance reminders | Report done; automatic notifications not started |
-| Maintenance records, inspections | Not started |
+## Next
 
-## Phase 3 — Loads and dispatch
+1. **Web foundation**: Next.js with shadcn/ui, TanStack Table and Query, React Hook Form and Zod, types
+   generated from the API contract, the workspace shell and company switcher.
+2. **Screens in the order above**, each with its end-to-end journey.
+3. **Maintenance**: work orders, inspections, out-of-service and return to service.
+4. **Finance, part two**: expenses, fuel, driver settlements.
 
-| Item | Status |
-| --- | --- |
-| Load creation with pickup and delivery stops | Done |
-| Dispatch board | Done |
-| Driver, truck and trailer assignment | Done |
-| Load status history | Done |
-| BOL and POD management | Done |
+## Deferred by decision
 
-## Phase 4 — Mobile and customer portals
-
-| Item | Status |
-| --- | --- |
-| Driver API: assignments, stop events, document upload, offline-safe retries | Done |
-| iOS and Android driver app | Not started |
-| Push notifications | Not started |
-| Customer portal and shipment tracking | Not started |
-
-## Phase 5 — Financial management
-
-| Item | Status |
-| --- | --- |
-| Customer invoices and payments | Done (one line-haul line per invoice) |
-| Receivables and overdue reporting | Done |
-| Expenses and fuel | Not started |
-| Driver settlements | Not started |
-| Profitability per load, accounting exports | Not started |
-
-## Phases 6 and 7 — Integrations, hardening, SaaS launch
-
-Not started: maps and mileage, ELD and telematics, email and SMS, EDI, subscription billing, tenant
-administration, performance testing, external security review.
-
-## Suggested next steps
-
-In order, each one building on what exists:
-
-1. **Deploy a staging environment** (Terraform: RDS, ECS Fargate, S3, CloudFront/WAF) and write the S3 storage
-   adapter. Everything after this benefits from a real environment.
-2. **Replace local sign-in with Cognito**, adding MFA, password reset and an invitation flow.
-3. **Build the driver app** on the existing driver API (assignments, stop events, POD capture, offline queue).
-4. **Add a background worker** for expiry reminders and notifications (email first, then SMS).
-5. **Deepen finance**: accessorial charges, expenses and fuel, driver settlements, per-load profitability.
-6. **Mapping**: PostGIS, geocoded stops, mileage, and a map on the dispatch board.
+Deployment (AWS, Terraform, Cognito, S3) comes after the product is built. The driver mobile app and the
+customer portal follow the web application.

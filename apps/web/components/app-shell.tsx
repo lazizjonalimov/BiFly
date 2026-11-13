@@ -39,7 +39,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen md:flex">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
-        <span className="font-semibold">Carrier TMS</span>
+        <span className="font-semibold">BiFly</span>
         <Button size="sm" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls="main-nav">
           Menu
         </Button>
@@ -52,7 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="hidden items-center gap-2.5 px-4 py-4 md:flex">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-xs font-bold text-white">TMS</span>
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-slate-900">{me?.organization_name ?? "Carrier TMS"}</div>
+            <div className="truncate text-sm font-semibold text-slate-900">{me?.organization_name ?? "BiFly"}</div>
           </div>
         </div>
         <nav aria-label="Main" className="flex-1 space-y-0.5 px-2 py-2">

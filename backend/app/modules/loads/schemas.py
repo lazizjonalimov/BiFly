@@ -1,147 +1,326 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-Equipment = Literal["dry_van", "reefer", "flatbed", "step_deck", "box_truck", "tanker", "other"]
-LoadStatus = Literal["pending", "assigned", "dispatched", "in_transit", "delivered", "completed", "invoiced",
-                     "paid", "cancelled"]
+from app.core.crud import ListParams
+from app.core.money import Money as MoneyOut
+
+EquipmentType = Literal["dry_van", "reefer", "flatbed", "step_deck", "box_truck", "tanker", "other"]
+LoadStatus = Literal["draft", "planned", "assigned", "dispatched", "at_pickup", "in_transit", "at_delivery",
+                     "delivered", "pod_review", "completed", "on_hold", "cancelled"]
+BillingStatus = Literal["unbilled", "invoiced", "paid"]
+ChargeType = Literal["detention", "layover", "lumper", "fuel_surcharge", "tarp", "extra_stop", "tonu", "other"]
+Money = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
+# Views the dispatch board and the load list offer as one-click filters.
+LoadView = Literal["active", "unassigned", "pickups_today", "deliveries_today", "at_risk", "in_transit",
+                   "missing_pod", "ready_to_invoice"]
+Action = Literal["mark_ready", "dispatch", "arrive", "depart", "approve_pod", "reject_pod", "hold", "release",
+                 "cancel"]
 
 
-class StopIn(BaseModel):
-    type: Literal["pickup", "delivery"]
+# ---------------------------------------------------------------- stops, items, charges
+class StopFields(BaseModel):
     name: str | None = Field(default=None, max_length=160)
     address: str | None = Field(default=None, max_length=300)
     city: str = Field(min_length=1, max_length=80)
     state: str | None = Field(default=None, max_length=40)
     postal_code: str | None = Field(default=None, max_length=20)
-    appt_start: datetime | None = None
-    appt_end: datetime | None = None
-
-    @model_validator(mode="after")
-    def _appt_order(self):
-        if self.appt_start and self.appt_end and self.appt_end < self.appt_start:
-            raise ValueError("appt_end must not be before appt_start")
-        return self
-
-
-def _check_stops(stops: list[StopIn]) -> list[StopIn]:
-    if stops[0].type != "pickup" or stops[-1].type != "delivery":
-        raise ValueError("The first stop must be a pickup and the last stop a delivery")
-    return stops
-
-
-class LoadCreate(BaseModel):
-    customer_id: uuid.UUID
+    contact_name: str | None = Field(default=None, max_length=120)
+    contact_phone: str | None = Field(default=None, max_length=40)
     reference: str | None = Field(default=None, max_length=80)
-    commodity: str | None = Field(default=None, max_length=200)
-    equipment_type: Equipment = "dry_van"
-    weight_lbs: int | None = Field(default=None, ge=0, le=200_000)
-    customer_rate: Decimal = Field(default=Decimal("0"), ge=0, max_digits=12, decimal_places=2)
-    notes: str | None = Field(default=None, max_length=4000)
-    stops: list[StopIn] = Field(min_length=2, max_length=30)
+    instructions: str | None = Field(default=None, max_length=1000)
+    appt_start: AwareDatetime | None = None
+    appt_end: AwareDatetime | None = None
 
-    @model_validator(mode="after")
-    def _stops_ok(self):
-        _check_stops(self.stops)
-        return self
+    @field_validator("appt_end")
+    @classmethod
+    def _window(cls, end: datetime | None, info: ValidationInfo) -> datetime | None:
+        start = info.data.get("appt_start")
+        if end and start and end < start:
+            raise ValueError("The appointment can't end before it starts")
+        return end
 
 
-class LoadUpdate(BaseModel):
+class StopIn(StopFields):
+    type: Literal["pickup", "delivery"]
+
+
+class StopPatch(BaseModel):
+    """What can still change on a stop once the truck is rolling: the schedule and who to ask for."""
+    version: int
+    name: str | None = Field(default=None, max_length=160)
+    contact_name: str | None = Field(default=None, max_length=120)
+    contact_phone: str | None = Field(default=None, max_length=40)
     reference: str | None = Field(default=None, max_length=80)
-    commodity: str | None = Field(default=None, max_length=200)
-    equipment_type: Equipment | None = None
-    weight_lbs: int | None = Field(default=None, ge=0, le=200_000)
-    customer_rate: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
-    notes: str | None = Field(default=None, max_length=4000)
-    stops: list[StopIn] | None = Field(default=None, min_length=2, max_length=30)
-
-    @model_validator(mode="after")
-    def _stops_ok(self):
-        if self.stops:
-            _check_stops(self.stops)
-        return self
+    instructions: str | None = Field(default=None, max_length=1000)
+    appt_start: AwareDatetime | None = None
+    appt_end: AwareDatetime | None = None
 
 
-class StopOut(BaseModel):
+class StopOut(StopIn):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     seq: int
-    type: str
-    name: str | None
-    address: str | None
-    city: str
-    state: str | None
-    postal_code: str | None
-    appt_start: datetime | None
-    appt_end: datetime | None
     arrived_at: datetime | None
     departed_at: datetime | None
 
 
-class AssignmentOut(BaseModel):
-    id: uuid.UUID
-    driver_id: uuid.UUID
-    driver_name: str
-    vehicle_id: uuid.UUID
-    vehicle_unit: str
-    trailer_id: uuid.UUID | None
-    trailer_unit: str | None
+class StopsReplace(BaseModel):
+    version: int
+    stops: list[StopIn] = Field(max_length=20)
 
 
-class LoadSummary(BaseModel):
+class ItemIn(BaseModel):
+    description: str = Field(min_length=1, max_length=200)
+    quantity: int | None = Field(default=None, ge=0, le=1_000_000)
+    unit: str | None = Field(default=None, max_length=30)
+    weight_lbs: int | None = Field(default=None, ge=0, le=1_000_000)
+
+
+class ItemPatch(BaseModel):
+    description: str | None = Field(default=None, min_length=1, max_length=200)
+    quantity: int | None = Field(default=None, ge=0, le=1_000_000)
+    unit: str | None = Field(default=None, max_length=30)
+    weight_lbs: int | None = Field(default=None, ge=0, le=1_000_000)
+
+
+class ItemOut(ItemIn):
     model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+
+
+class ChargeIn(BaseModel):
+    type: ChargeType
+    description: str | None = Field(default=None, max_length=200)
+    quantity: Decimal = Field(default=Decimal("1"), gt=0, max_digits=10, decimal_places=2)
+    rate: Decimal = Field(max_digits=12, decimal_places=2, description="Per unit. Negative for a deduction")
+    billable: bool = True
+    driver_payable: bool = False
+
+
+class ChargePatch(BaseModel):
+    type: ChargeType | None = None
+    description: str | None = Field(default=None, max_length=200)
+    quantity: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    rate: Decimal | None = Field(default=None, max_digits=12, decimal_places=2)
+    billable: bool | None = None
+    driver_payable: bool | None = None
+
+
+class ChargeOut(ChargeIn):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    amount: MoneyOut
+
+
+# ---------------------------------------------------------------- load
+class LoadFields(BaseModel):
+    terminal_id: uuid.UUID | None = None
+    reference: str | None = Field(default=None, max_length=80)
+    bol_number: str | None = Field(default=None, max_length=80)
+    commodity: str | None = Field(default=None, max_length=200)
+    equipment_type: EquipmentType = "dry_van"
+    weight_lbs: int | None = Field(default=None, ge=0, le=1_000_000)
+    miles: int | None = Field(default=None, ge=0, le=50_000)
+    instructions: str | None = Field(default=None, max_length=4000)
+    customer_rate: Money = Decimal("0")
+
+
+class LoadCreate(LoadFields):
+    customer_id: uuid.UUID
+    # draft: saved to finish later, nothing is checked beyond the fields themselves.
+    # planned: ready to be assigned, so it needs a complete route.
+    status: Literal["draft", "planned"] = "planned"
+    stops: list[StopIn] = Field(default_factory=list, max_length=20)
+    items: list[ItemIn] = Field(default_factory=list, max_length=50)
+    charges: list[ChargeIn] = Field(default_factory=list, max_length=30)
+
+
+class LoadUpdate(BaseModel):
+    version: int = Field(description="The version you last saw. A stale one is rejected with VERSION_CONFLICT")
+    customer_id: uuid.UUID | None = None
+    terminal_id: uuid.UUID | None = None
+    reference: str | None = Field(default=None, max_length=80)
+    bol_number: str | None = Field(default=None, max_length=80)
+    commodity: str | None = Field(default=None, max_length=200)
+    equipment_type: EquipmentType | None = None
+    weight_lbs: int | None = Field(default=None, ge=0, le=1_000_000)
+    miles: int | None = Field(default=None, ge=0, le=50_000)
+    instructions: str | None = Field(default=None, max_length=4000)
+    customer_rate: Money | None = None
+
+
+class TransitionIn(BaseModel):
+    action: Action
+    version: int
+    reason: str | None = Field(default=None, max_length=500)
+    stop_id: uuid.UUID | None = Field(default=None, description="For arrive/depart: the stop you mean")
+    occurred_at: AwareDatetime | None = Field(default=None, description="When it happened, if recorded later")
+
+
+class NoteIn(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+class TrackingIn(BaseModel):
+    kind: Literal["check_call", "exception"] = "check_call"
+    occurred_at: AwareDatetime | None = None
+    city: str | None = Field(default=None, max_length=80)
+    state: str | None = Field(default=None, max_length=40)
+    note: str | None = Field(default=None, max_length=500)
+
+
+# ---------------------------------------------------------------- responses
+class Ref(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
+class LoadRef(BaseModel):
     id: uuid.UUID
     load_number: str
     status: str
-    customer_id: uuid.UUID
-    customer_name: str | None = None
+
+
+class AssignmentBrief(BaseModel):
+    id: uuid.UUID
+    status: str
+    driver: Ref
+    vehicle: Ref
+    trailer: Ref | None
+
+
+class AssignmentOut(AssignmentBrief):
+    assigned_at: datetime
+    assigned_by_name: str | None
+    released_at: datetime | None
+    release_reason: str | None
+
+
+class Risk(BaseModel):
+    code: str
+    message: str
+
+
+class LoadListItem(BaseModel):
+    id: uuid.UUID
+    load_number: str
+    status: LoadStatus
+    billing_status: BillingStatus
+    version: int
+    customer: Ref
+    terminal_id: uuid.UUID | None
     reference: str | None
-    commodity: str | None
     equipment_type: str
-    customer_rate: Decimal
-    currency: str = "USD"
-    origin: str | None = None
-    destination: str | None = None
-    pickup_at: datetime | None = None
+    origin_city: str | None
+    origin_state: str | None
+    destination_city: str | None
+    destination_state: str | None
+    pickup_at: datetime | None
+    delivery_at: datetime | None
+    delivered_at: datetime | None
+    miles: int | None
+    weight_lbs: int | None
+    # Hidden (null) from roles that may not see rates.
+    revenue: MoneyOut | None
+    currency: str
+    assignment: AssignmentBrief | None
+    risks: list[Risk]
+    created_at: datetime
+    updated_at: datetime
+
+
+class NoteOut(BaseModel):
+    id: uuid.UUID
+    body: str
+    author_name: str | None
     created_at: datetime
 
 
 class StatusEventOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
+    action: str
     from_status: str | None
     to_status: str
-    actor_user_id: uuid.UUID | None
+    actor_name: str | None
     note: str | None
     created_at: datetime
 
 
-class LoadDetail(LoadSummary):
-    weight_lbs: int | None
-    notes: str | None
+class TrackingOut(BaseModel):
+    id: uuid.UUID
+    kind: str
+    occurred_at: datetime
+    city: str | None
+    state: str | None
+    note: str | None
+    source: str
+    actor_name: str | None
+
+
+class InvoiceRef(BaseModel):
+    id: uuid.UUID
+    invoice_number: str | None
+    status: str
+
+
+class Editable(BaseModel):
+    """What the caller may change right now, given the load's state and their role."""
+    details: bool
+    customer: bool
+    stops: bool
+    schedule: bool
+    rates: bool
+
+
+class LoadDetail(LoadListItem):
+    bol_number: str | None
+    commodity: str | None
+    instructions: str | None
+    customer_rate: MoneyOut | None
+    charges_total: MoneyOut | None
+    held_from_status: str | None
+    invoice: InvoiceRef | None
     stops: list[StopOut]
-    assignment: AssignmentOut | None = None
-    events: list[StatusEventOut] = []
-    has_pod: bool = False
-    invoice_id: uuid.UUID | None = None
+    items: list[ItemOut]
+    charges: list[ChargeOut]
+    notes: list[NoteOut]
+    events: list[StatusEventOut]
+    tracking: list[TrackingOut]
+    assignments: list[AssignmentOut]
+    allowed_actions: list[str]
+    editable: Editable
 
 
-class StopEventIn(BaseModel):
-    event: Literal["arrived", "departed"]
-    occurred_at: datetime | None = Field(default=None, description="Device time; defaults to server time")
+class LoadListParams(ListParams):
+    status: list[LoadStatus] | None = None
+    billing_status: BillingStatus | None = None
+    view: LoadView | None = None
+    customer_id: uuid.UUID | None = None
+    terminal_id: uuid.UUID | None = None
+    driver_id: uuid.UUID | None = None
+    vehicle_id: uuid.UUID | None = None
+    trailer_id: uuid.UUID | None = None
+    equipment_type: EquipmentType | None = None
+    # Calendar dates in the company's time zone, both inclusive.
+    pickup_from: date | None = None
+    pickup_to: date | None = None
+    delivery_from: date | None = None
+    delivery_to: date | None = None
+    origin_state: str | None = Field(default=None, max_length=40)
+    destination_state: str | None = Field(default=None, max_length=40)
 
 
-class CancelIn(BaseModel):
-    reason: str = Field(min_length=1, max_length=500)
-
-
-class BoardCard(LoadSummary):
-    assignment: AssignmentOut | None = None
-
-
-class Board(BaseModel):
-    columns: dict[str, list[BoardCard]]
-    truncated: bool = Field(default=False, description="True when there are more open loads than the board shows")
+class BoardSummary(BaseModel):
+    """Counts behind the dispatch board's summary strip. Each matches the view of the same name."""
+    active: int
+    unassigned: int
+    pickups_today: int
+    deliveries_today: int
+    at_risk: int
+    in_transit: int
+    missing_pod: int
+    on_hold: int

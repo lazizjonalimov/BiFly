@@ -9,7 +9,7 @@ The browser never calls the TMS API directly and never holds the API token.
 
 - `app/api/session/*` signs in, signs up, signs out and changes passwords. On success it stores the API token
   in an `httpOnly` cookie.
-- `app/api/tms/[...path]` forwards every other call to `TMS_API_URL/api/v1/…`, attaching that token.
+- `app/api/tms/[...path]` forwards every other call to `BIFLY_API_URL/api/v1/…`, attaching that token.
 - `proxy.ts` sends signed-out visitors to `/login` (a convenience redirect only; the API authorizes every
   request) and sets the content security policy and frame protection on every page.
 - Writes are accepted only from the app's own pages. The check uses the browser's `Sec-Fetch-Site` header, so

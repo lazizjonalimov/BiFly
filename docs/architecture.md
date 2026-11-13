@@ -1,66 +1,69 @@
 # Architecture
 
-This document explains how the system is put together and, more importantly, the rules that keep it safe to
-extend. Read the [README](../README.md) first for the overview.
+How BiFly is put together and, more importantly, the rules that keep it safe to extend. Read the
+[README](../README.md) first for the overview. Decisions with their reasons are in [decisions](decisions).
 
 ## Shape
 
-A **modular monolith**: one FastAPI application (`backend/app`) in which each business area is its own package
-under `app/modules/`. Modules share one PostgreSQL database and talk to each other through plain Python calls.
-The web portal (`apps/web`) is a Next.js application that reaches the API only through its own server.
+A **modular monolith**: one FastAPI application (`backend/app`) in which each business area is its own
+package under `app/modules/`. Modules share one PostgreSQL database and call each other as plain Python.
+The web application reaches the API only through its own server.
 
 ```
-app/core/       cross-cutting: config, db + tenancy, security, permissions, errors, idempotency, pagination
+app/core/       config, db and tenancy, security, permissions, errors, paging, idempotency, storage, money
 app/modules/
-  organizations/  companies, users, memberships, audit log, auth endpoints
-  customers/      customers
-  drivers/        drivers and qualification dates
-  fleet/          trucks and trailers
-  loads/          loads, stops, status history, the lifecycle rules (service.py)
-  dispatch/       assignments, dispatch board, driver app endpoints
-  documents/      BOL / POD / receipts
-  finance/        invoices, lines, payments
-app/api/        endpoints that read across modules (reports)
+  organizations/  accounts, companies, memberships, terminals, preferences, saved views, audit log, sign-in
+  customers/      customers, contacts, addresses
+  drivers/        drivers, qualification files
+  equipment/      trucks and trailers
+  loads/          loads, stops, items, charges, notes, check calls, and the lifecycle (service.py)
+  dispatch/       eligibility, assignments, the board, the driver's own endpoints
+  documents/      upload contract, links, reviews
+  safety/         compliance rules and the expirations queue
+  finance/        invoices, payments, allocations
+  reports/        dashboard, exceptions, search, reports and exports
 ```
 
-Dependencies point one way: `dispatch`, `documents` and `finance` depend on `loads`; nothing depends on them.
-Every load status change in any module goes through `loads.service.change_status`.
+Dependencies point one way. `dispatch`, `documents` and `finance` depend on `loads`; `loads` knows nothing
+about how it is invoiced beyond keeping a draft invoice in step. A load's status is written in exactly one
+function, `loads.service.move`.
 
-## Tenant isolation
+## Accounts, companies and tenant isolation
 
-This is the property everything else rests on: **a company can never read or change another company's data.**
-It is enforced in three independent places.
+An **account** is an owner's profile. It holds up to ten active **companies**
+([decision 0001](decisions/0001-multi-company-profile.md)). The company, not the account, is the tenant:
+two companies under one owner are kept apart exactly like two unrelated carriers.
+
+**A company can never read or change another company's data.** This is enforced in three independent places.
 
 ### 1. PostgreSQL row-level security (authoritative)
 
 - Every tenant table has an `organization_id` column and a policy
   `organization_id = current_setting('app.org_id')`, for reads and writes.
-- The API connects as `tms_app`, a role that owns nothing, is not a superuser, and cannot bypass RLS.
-  Migrations run separately as `tms_owner`.
-- For every transaction, the session sets `app.org_id` and `app.user_id` with `set_config(..., is_local => true)`
-  (see `app/core/db.py`). The values die with the transaction, so a pooled connection cannot carry one company's
-  context into another request.
+- The API connects as `bifly_app`, a role that owns nothing, is not a superuser and cannot bypass RLS.
+  Migrations run separately as `bifly_owner`.
+- For every transaction the session sets `app.org_id` and `app.user_id` with
+  `set_config(..., is_local => true)` (see `app/core/db.py`). The values die with the transaction, so a
+  pooled connection cannot carry one company's context into another request.
 - With no context set, queries return nothing. The default is "see nothing", not "see everything".
-- On startup the API checks its own role and **refuses to run** if that role is a superuser, has `BYPASSRLS`,
-  or owns tables.
-- RLS is `FORCE`d on every table, so even the schema owner is tenant-scoped by default. A data fix run as the
-  owner has to set a company context, or lift `FORCE` explicitly inside a migration.
+- On startup the API checks its own role and **refuses to run** if that role is a superuser, has
+  `BYPASSRLS`, or owns tables.
+- RLS is `FORCE`d on every table, so even the schema owner is scoped by default.
 
-`users` are global identities (one person may belong to several companies), so that table has its own policies:
-a session may read itself and co-members of its current company, and update only its own row, and only the
-`full_name`, `password_hash` and `token_version` columns.
+`users` and `accounts` span companies, so they have their own narrow policies: a session can read itself
+and co-members of its current company, and update only its own row and only a few columns.
 
-The few operations that must work before a company is known — looking up a user by email at login, listing the
-companies a user belongs to, creating a user — are `SECURITY DEFINER` functions (`auth_lookup_user`,
-`auth_user_organizations`, `auth_create_user`). They run as the schema owner, which is given exactly what they
-need and nothing else: policies named `definer_read` on the three identity tables and `definer_insert` on
-`users` (migration `0003`).
+What must work before a company is known (finding a user at sign-in, listing a person's companies, listing
+an account's companies for its owner) goes through `SECURITY DEFINER` functions. They run as the schema
+owner, which is given exactly the read access they need.
+
+Working across an account's companies (copying setup into a new company, archiving) never lifts isolation.
+The API opens one session bound to the source company to read and another bound to the target to write.
 
 ### 2. ORM filter (defence in depth)
 
-Every ORM `SELECT` issued by a tenant session is automatically restricted to that company
-(`with_loader_criteria` on the `TenantScoped` mixin). It is independent of the database policies and is tested
-by deliberately pointing the database context at the wrong company.
+Every ORM `SELECT` issued by a tenant session is also restricted to that company (`with_loader_criteria` on
+the `TenantScoped` mixin), independently of the database policies.
 
 ### 3. Composite foreign keys
 
@@ -70,161 +73,148 @@ company's customer even if both other layers failed.
 
 ### Rules for new tables
 
-1. Inherit `TenantScoped` (gives you `organization_id`).
-2. Add `UniqueConstraint("organization_id", "id")` and reference other tenant tables with composite foreign keys.
-3. Add the table to `TENANT_TABLES` in a new migration so it gets the policy and grants. A tenant table without
-   a policy is invisible to the API (no grant), so forgetting this fails closed.
-4. Add an isolation test for it in `tests/test_tenancy.py`.
+1. Inherit `TenantScoped`.
+2. Add `UniqueConstraint("organization_id", "id")` and refer to other tenant tables with composite keys.
+3. In the migration that creates the table, pass it through `app.core.rls.secure_tenant_table`. A tenant
+   table without a policy has no grant, so forgetting this fails closed.
+4. `tests/test_tenancy.py` checks that every table in the schema is under forced RLS, so a miss fails CI.
 
 ## Sensitive data
 
 Driver licence numbers are encrypted in the application before they are written (`app/core/crypto.py`), so
-they never appear in the database, its backups, or a replica in readable form.
+they never appear readable in the database, its backups or a replica.
 
-- Roles that manage driver qualification (`drivers:write`) see the number. Everyone else sees the last four
-  characters. It is not searchable.
+- Roles with `drivers.sensitive.read` see the number and pay settings. Everyone else gets the last four
+  characters. The same rule covers scans of licences and medical cards in the document store.
 - The audit log records that the field changed, never its value.
-- Keys come from `TMS_FIELD_ENCRYPTION_KEYS`. To rotate, put the new key first and keep the old one: new
-  writes use the new key and old rows still decrypt. Losing the keys loses the data, so back them up with the
-  same care as the database.
+- Keys come from `BIFLY_FIELD_ENCRYPTION_KEYS`. To rotate, put the new key first and keep the old one.
 
-To protect another column the same way: use the `EncryptedText` column type, mask it in the module's response
-for roles that don't need it, and list it in `audit_redact`.
+## Sign-in and sessions
 
-## Authentication and sessions
+- Passwords are hashed with Argon2id. The API issues a signed token (12 hours) carrying the user, the
+  company and the user's `token_version`.
+- On **every** request the API re-reads the membership: a role change, deactivation or removal takes effect
+  on the next request. Changing a password revokes every token issued before it.
+- **Switching company** re-verifies membership and issues a token for the chosen company. The last company
+  a person worked in is remembered, so the next sign-in returns there; someone with several companies and
+  no history is asked to choose.
+- An **archived company is read-only**: every change is refused with `ORGANIZATION_ARCHIVED`, apart from
+  switching away or restoring it.
 
-- Passwords are hashed with Argon2id.
-- The API issues a signed token (HS256, 12 hours) carrying the user, the company, and the user's `token_version`.
-- On **every** request the API re-reads the membership: role changes and deactivation take effect immediately,
-  not when the token expires. Changing a password bumps `token_version`, which revokes every token issued before.
-- The web portal uses a backend-for-frontend: `apps/web/app/api/session/*` exchanges credentials for a token and
-  stores it in an `httpOnly`, `SameSite=Lax` cookie; `apps/web/app/api/tms/[...path]` forwards API calls with
-  that token. Page scripts cannot read it.
-- State-changing requests are accepted only from the app's own pages. The check reads the browser's
-  `Sec-Fetch-Site` header, which scripts cannot forge and which stays correct behind a proxy that rewrites
-  `Host` (older browsers fall back to an Origin comparison).
-- Pages refuse to be framed by other sites. Setting `TMS_ALLOW_EMBEDDING=true` on the web app lifts that and
-  issues the session cookie for cross-site frames, so the app can be shown in a hosted preview pane. It is a
-  preview setting and must stay off in production.
-
-Moving to Amazon Cognito later means replacing token issuing and verification (`app/core/security.py`,
-`get_principal` in `app/core/deps.py`). Roles and memberships stay in this database.
+Moving to Amazon Cognito later replaces token issuing and verification (`app/core/security.py`,
+`get_principal`). Accounts, companies, roles and memberships stay in this database.
 
 ## Authorization
 
-Roles belong to a membership (a user in a company): `owner`, `admin`, `dispatcher`, `safety_manager`,
-`fleet_manager`, `accountant`, `driver`, `customer`. Each role maps to a set of permissions in
-`app/core/permissions.py`, and every endpoint declares the permission it needs with `Depends(require("…"))`.
+A role belongs to a membership (a person in one company). Each role maps to permissions such as
+`loads.update` or `payments.record` in `app/core/permissions.py`, and every endpoint declares what it
+needs. `GET /api/v1/roles` returns the matrix. Some responses are shaped by role as well: rates, licence
+numbers, pay and payments are left out for roles that may not see them.
 
-Drivers hold only `driver:self` and can use only `/api/v1/driver/*`, where every query is tied to their own
-active assignment and loads appear only once dispatched. They are never shown the customer's rate.
-
-The web portal hides what a role can't use, but that is a convenience. The API is the enforcement point.
+The web app hides what a role can't use, but that is presentation. The API is the enforcement point.
 
 ## Load lifecycle
 
+See [decision 0002](decisions/0002-load-lifecycle.md) for the full table. In short:
+
 ```mermaid
 stateDiagram-v2
-  [*] --> pending
-  pending --> assigned: assign driver, truck, trailer
-  assigned --> pending: unassign
-  assigned --> dispatched: dispatch to driver
-  dispatched --> in_transit: driver departs first pickup
-  in_transit --> delivered: driver departs final delivery
-  delivered --> completed: dispatcher confirms (POD required)
-  completed --> invoiced: invoice issued
-  invoiced --> completed: invoice voided
-  invoiced --> paid: paid in full
-  pending --> cancelled
-  assigned --> cancelled
-  dispatched --> cancelled
+  [*] --> draft
+  [*] --> planned
+  draft --> planned: mark ready
+  planned --> assigned: assign
+  assigned --> planned: unassign
+  assigned --> dispatched: dispatch
+  dispatched --> at_pickup: arrive
+  at_pickup --> in_transit: depart
+  in_transit --> at_pickup: arrive (next pickup)
+  in_transit --> at_delivery: arrive
+  at_delivery --> in_transit: depart (more stops)
+  at_delivery --> delivered: depart (last stop)
+  delivered --> pod_review: POD uploaded
+  pod_review --> completed: approve
+  pod_review --> delivered: reject
 ```
 
-The transition table lives in `app/modules/loads/service.py`. Anything not listed is rejected with `409`. Every
-change appends a row to `load_status_events`; the API role has no `UPDATE` or `DELETE` on that table or on
-`audit_logs`, so history cannot be rewritten through the application.
+`on_hold` and `cancelled` are reachable from the early states. Billing status (`unbilled`, `invoiced`,
+`paid`) is separate and changed only by invoice and payment actions.
 
-Assignment checks (all against the pickup date): driver active with unexpired CDL and medical certificate;
-truck and trailer active with unexpired insurance and registration; trailer type matches the load's equipment;
-none of the three is on another load that is currently dispatched or in transit.
+- Every change appends a row to `load_status_events`. The API role cannot update or delete it.
+- Every change bumps the load's `version`. Clients send back the version they saw; a stale one is refused
+  with `VERSION_CONFLICT` instead of overwriting someone else's work.
+- The response for a load includes `allowed_actions` and `editable`, worked out from its state and the
+  caller's role, so screens offer only what the API will accept.
 
-## API conventions
+## Assignment
 
-- **Base path** `/api/v1`. Interactive documentation at `/api/docs`.
-- **Errors** are always `{"error": {"code", "message", "details"}, "request_id"}`. Validation errors list
-  `{field, message}` pairs in `details`.
-- **Correlation ids**: send `X-Request-ID` or one is generated; it is echoed back, logged, and stored on audit
-  entries.
-- **Pagination** is cursor-based: list endpoints return `{items, next_cursor}`; pass `cursor` to continue.
-- **Idempotency**: load creation, assignment, stop events, invoice creation and payments accept an
-  `Idempotency-Key` header.
-  A repeat with the same key returns the stored response (`Idempotent-Replay: true`) without doing the work
-  again; reusing a key for a different request is rejected. Stop events are additionally idempotent by nature,
-  so a driver's phone can resend queued events after reconnecting.
-- **Concurrency**: operations that change a load lock its row first (`SELECT … FOR UPDATE`), and uniqueness
-  rules that matter (one active assignment per load, one live invoice per load) are database indexes.
-- **Money** is `NUMERIC(12,2)` in the database and `Decimal` in Python; it is serialized as a string. Every load,
-  invoice and payment stores its currency (only USD is accepted today).
-- **Financial records are corrected, not edited.** Invoices are voided rather than deleted, and the API's
-  database role cannot update or delete payments or invoice lines.
-- **Business dates are the company's local dates.** Each company has a time zone; invoice dates, due dates,
-  "overdue" and expiry checks use `Principal.today()`, never the server's date.
+Eligibility has one implementation (`dispatch/eligibility.py`), used both to explain (the assignment panel)
+and to enforce (the assignment itself, and again at dispatch). A driver or unit is blocked when it is not
+active, when a licence, medical card, required qualification, insurance, registration or inspection has
+expired, or when it is committed to another load at the same time. Warnings (expiring soon, another
+terminal, a different trailer type) are shown but do not block.
+
+Two loads collide when their pickup-to-delivery windows overlap. A load that is under way holds its driver
+and equipment until it delivers, however late it is running.
+
+Assigning locks the driver, truck and trailer rows in a fixed order before checking, so two dispatchers
+booking the same driver at the same moment cannot both succeed.
+
+## Money
+
+- `NUMERIC(12,2)` in the database, `Decimal` in Python, a string with two decimals in JSON.
+- A **draft** invoice follows its loads: changing a load's rate or charges updates the draft.
+- **Issuing** assigns the number (gapless per company), takes a snapshot of the customer's billing
+  identity, and fixes the content. Database triggers refuse any later change to an issued invoice or its
+  lines, whoever asks.
+- Corrections are a **void** and a new invoice. Voiding frees the loads to be invoiced again.
+- **Payments** are recorded once and never edited. They are applied to invoices through allocations; money
+  not yet matched stays on the payment as unapplied. A mistake is **reversed**, which reopens whatever it
+  had paid. "Paid", "part paid" and "overdue" are always worked out from payments and the due date.
 
 ## Documents
 
-Files are stored through a two-method interface (`app/core/storage.py`); metadata lives in `documents`.
-Storage keys are `<organization>/<document id>` and never contain user-supplied names. Uploads are limited to
-15 MB and to PDF and common image types, and downloads are always served as attachments. The production
-adapter should use a private S3 bucket with short-lived signed URLs.
+Metadata lives in PostgreSQL, bytes in object storage. Uploading is three steps: ask (`upload-intents`),
+send the file to the address returned, confirm (`complete`). On confirmation the API checks that what
+arrived is the announced size and really is a PDF or image, and discards it otherwise. With S3 the second
+step becomes a presigned URL and nothing else changes.
+
+A document can be linked to several records. Every download is authorised and logged. The approved proof of
+delivery of a completed load cannot be removed.
+
+## API conventions
+
+See [decision 0004](decisions/0004-api-contract.md).
+
+- **Base path** `/api/v1`. Interactive documentation at `/api/docs`, the contract at `/api/openapi.json`.
+- **Errors**: `{"error": {"code", "message", "field_errors", "details", "request_id"}}`.
+- **Lists**: `{"items", "page": {"next_cursor", "has_more", "total_count"}, "meta"}`. Sorting, filtering
+  and paging run in the database. Sort keys and filters are allowlisted per endpoint; unknown ones are
+  rejected.
+- **Idempotency**: creating loads, assignments, invoices and payments, and issuing an invoice, accept an
+  `Idempotency-Key`. A repeat returns the stored response; the same key with a different request is refused.
+- **Dates**: instants are UTC; calendar dates (due dates, expirations, "today") are the company's local
+  date, from `Principal.today()`, never the server's.
+- **Correlation**: `X-Request-ID` is accepted or generated, echoed, logged, stored on audit entries and
+  included in every error.
 
 ## Differences from the blueprint
 
-The implementation follows the architecture blueprint's decisions and rules. Where it is simpler than the
-blueprint's full schema, that is deliberate scope for a first release, and each item below has a clear path to
-the blueprint's shape.
-
-### Infrastructure and stack
-
-| Blueprint | Now | Why |
+| Blueprint | Now | Path |
 | --- | --- | --- |
-| Amazon Cognito (OIDC), MFA, refresh tokens | Local accounts, 12-hour signed tokens, revocation by token version | Lets the whole system run and be tested with no cloud account. The seam for Cognito is small |
-| PostGIS | Plain PostgreSQL | Nothing uses geography yet. Add the extension with the first mapping feature |
-| Redis, SQS workers, outbox events | None | Nothing is asynchronous yet. Introduce with reminders and notifications |
-| S3 with signed URLs | Local volume behind a storage interface; downloads go through the API | Same reason as Cognito |
-| shadcn/ui, TanStack Table, React Hook Form + Zod | Tailwind with a small in-house component set, TanStack Query | Kept the first release dependency-light. Adopt screen by screen |
-| Terraform, ECS, CloudFront/WAF | Dockerfiles and Docker Compose | Images are ready for ECS. The infrastructure itself is the next phase |
-| Testcontainers | A real PostgreSQL from Docker Compose (or the CI service container) | Same guarantee, one less moving part |
-
-### Data model
-
-| Blueprint | Now |
-| --- | --- |
-| `roles`, `permissions`, `role_permissions`, `membership_roles` tables; several roles per member | One role per membership, with the role-to-permission map in code (`app/core/permissions.py`) |
-| `invitations` | Not built. An admin creates the user with a temporary password |
-| `terminals`, `addresses` (with coordinates) | Not built. Addresses are fields on stops and customers |
-| `customer_contacts` | Not built. One billing contact on the customer |
-| `driver_licenses`, `driver_qualifications` | CDL fields and medical-certificate expiry directly on `drivers` |
-| `load_items`, `rate_confirmations`, `tracking_events` | Not built. Commodity and weight are on the load |
-| `dispatch_assignments.accepted_at` and a driver "accept" step | Not built. A dispatched load is visible to its driver immediately |
-| `documents` + `document_links` (any entity), checksums | Documents belong to a load |
-| Invoices spanning several loads, `subtotal` / `tax` | One invoice per load with a single line-haul line |
-| `expenses`, `fuel_transactions`, `driver_settlements` | Not built |
-| `integrations`, `webhook_*`, `outbox_events` | Not built |
-| `audit_logs` with before/after snapshots and IP address | Records the changed fields and the request id |
-
-### Behaviour
-
-| Blueprint | Now |
-| --- | --- |
-| Optimistic concurrency (version or `updated_at` precondition) on assignments and load status | Row locks plus the explicit state machine and unique indexes. Conflicting changes are rejected with `409`; plain edits to a load are last-write-wins |
-| Idempotency keys expire | Keys are kept indefinitely until a cleanup job exists |
-| Malware scanning of uploads | File type and size are validated; no scanning |
-| Platform operator role with audited, time-limited support access | Not built. There is no cross-company access of any kind |
+| Cognito, MFA, refresh tokens, invitations by email | Local accounts and signed tokens | [Decision 0003](decisions/0003-local-adapters-until-deployment.md) |
+| S3 presigned URLs, malware scanning | Local storage behind the same three-step contract; type and size checks | Storage adapter |
+| SQS workers, outbox, notifications | None; expirations are computed when read | Add with notifications |
+| PostGIS, Redis | Not used | Add with mapping and caching |
+| Custom roles in tables | Fixed roles, permission map in code, matrix published by the API | Tables when custom roles are needed |
+| "Picked up" as its own state | Folded into `in_transit` | [Decision 0002](decisions/0002-load-lifecycle.md) |
+| Shared drivers and equipment across an owner's companies | Independent copies per company | [Decision 0001](decisions/0001-multi-company-profile.md) |
+| Async report jobs | Reports run in the request, with CSV export | Jobs when reports get heavy |
+| Maintenance, expenses, fuel, settlements | Not built yet | [Roadmap](roadmap.md) |
 
 ## Operating notes
 
-- Run migrations as the owner role, as a separate step from starting the API (see the `migrate` service in
-  `docker-compose.yml`). The API container should never receive owner credentials.
-- Never point `TMS_DATABASE_URL` at an owner or superuser. The API will refuse to start, by design.
-- Platform-level administration (support access across companies) is intentionally absent. When it is added it
-  should be an explicit, audited, time-limited grant, not a role that sees everything.
+- Run migrations as the owner role, as a separate step from starting the API (the `migrate` service in
+  `docker-compose.yml`). The API never receives owner credentials.
+- Never point `BIFLY_DATABASE_URL` at an owner or superuser. The API will refuse to start, by design.
+- There is no platform operator who can see every company. When support access is added it should be an
+  explicit, audited, time-limited grant.

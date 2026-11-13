@@ -1,34 +1,44 @@
 import logging
-import time
-import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api import reports
 from app.core.config import get_settings
 from app.core.crypto import validate_encryption_keys
 from app.core.db import assert_restricted_role, get_engine, new_session
-from app.core.errors import install_error_handlers
+from app.core.errors import ErrorResponse, install_error_handlers
+from app.core.middleware import RequestContext
 from app.modules.customers.router import router as customers_router
 from app.modules.dispatch.driver_router import router as driver_router
 from app.modules.dispatch.router import router as dispatch_router
 from app.modules.documents.router import router as documents_router
 from app.modules.drivers.router import router as drivers_router
+from app.modules.equipment.router import router as equipment_router
 from app.modules.finance.router import router as finance_router
-from app.modules.fleet.router import router as fleet_router
 from app.modules.loads.router import router as loads_router
-from app.modules.organizations.router import auth_router
-from app.modules.organizations.router import router as org_router
+from app.modules.organizations.account_router import router as account_router
+from app.modules.organizations.auth_router import router as auth_router
+from app.modules.organizations.router import router as organization_router
+from app.modules.reports.router import router as reports_router
+from app.modules.safety.router import router as safety_router
 
-log = logging.getLogger("tms.access")
+DESCRIPTION = """
+The BiFly transportation management API.
+
+* Every request acts inside one company, taken from the access token. A record that belongs to another
+  company answers 404, exactly as if it did not exist.
+* Errors share one shape: `{"error": {"code", "message", "field_errors", "details", "request_id"}}`.
+* Lists share one shape: `{"items", "page": {"next_cursor", "has_more", "total_count"}, "meta"}` and are
+  sorted, filtered and paged in the database.
+* Money is sent as decimal strings. Instants are UTC; calendar dates are in the company's time zone.
+"""
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Fail closed: never serve requests through a role that bypasses tenant isolation.
+    # Fail closed: never serve requests through a database role that tenant isolation does not apply to.
     assert_restricted_role(get_engine())
     validate_encryption_keys()
     yield
@@ -37,35 +47,22 @@ async def lifespan(_: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    app = FastAPI(title="Carrier TMS API", version="0.1.0", docs_url="/api/docs", openapi_url="/api/openapi.json",
-                  lifespan=lifespan)
+    app = FastAPI(title="BiFly API", version="0.2.0", description=DESCRIPTION, docs_url="/api/docs",
+                  redoc_url=None, openapi_url="/api/openapi.json", lifespan=lifespan)
 
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"],
                        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
                        expose_headers=["X-Request-ID", "Idempotent-Replay"])
-
-    @app.middleware("http")
-    async def request_context(request: Request, call_next):
-        # Correlation id: accepted from the caller if sane, otherwise generated; echoed and logged.
-        rid = request.headers.get("X-Request-ID", "")
-        if not (8 <= len(rid) <= 64 and rid.replace("-", "").isalnum()):
-            rid = uuid.uuid4().hex
-        request.state.request_id = rid
-        start = time.perf_counter()
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = rid
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        who = getattr(request.state, "principal", (None, None))
-        log.info("request_id=%s method=%s path=%s status=%s ms=%.1f user=%s org=%s", rid, request.method,
-                 request.url.path, response.status_code, (time.perf_counter() - start) * 1000, who[0], who[1])
-        return response
-
+    # Added last, so it wraps everything else.
+    app.add_middleware(RequestContext, max_body_bytes=settings.max_upload_bytes + 64 * 1024)
     install_error_handlers(app)
 
-    v1 = APIRouter(prefix="/api/v1")
-    for r in (auth_router, org_router, customers_router, drivers_router, fleet_router, loads_router,
-              dispatch_router, driver_router, documents_router, finance_router, reports.router):
-        v1.include_router(r)
+    errors = {code: {"model": ErrorResponse} for code in (401, 403, 404, 409, 422)}
+    v1 = APIRouter(prefix="/api/v1", responses=errors)
+    for router in (auth_router, account_router, organization_router, customers_router, drivers_router,
+                   equipment_router, loads_router, dispatch_router, driver_router, documents_router,
+                   safety_router, finance_router, reports_router):
+        v1.include_router(router)
     app.include_router(v1)
 
     @app.get("/healthz", include_in_schema=False)

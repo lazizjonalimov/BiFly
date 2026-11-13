@@ -5,4 +5,4 @@
  * cross-site frame. That removes clickjacking protection, so it is for previews and demos only.
  * Never enable it in production.
  */
-export const allowEmbedding = (): boolean => process.env.TMS_ALLOW_EMBEDDING === "true";
+export const allowEmbedding = (): boolean => process.env.BIFLY_ALLOW_EMBEDDING === "true";

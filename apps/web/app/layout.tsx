@@ -6,7 +6,7 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Carrier TMS", template: "%s · Carrier TMS" },
+  title: { default: "BiFly", template: "%s · BiFly" },
   description: "Transportation management for trucking companies",
 };
 

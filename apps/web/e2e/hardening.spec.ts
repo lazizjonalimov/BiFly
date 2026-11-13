@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { expect, test } from "@playwright/test";
 
 // Guards for how the web app behaves at its edges: behind proxies, inside frames, and against forged requests.
-// These assume the default configuration (TMS_ALLOW_EMBEDDING is not set).
+// These assume the default configuration (BIFLY_ALLOW_EMBEDDING is not set).
 
 test("signing up works behind a proxy that rewrites the Host header", async ({ page, baseURL }) => {
   // Load balancers and preview tunnels often show the app a different Host than the address in the browser.

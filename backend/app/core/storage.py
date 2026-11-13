@@ -1,5 +1,9 @@
-"""Object storage abstraction. Local filesystem in development; swap in S3 (private bucket + presigned URLs)
-for production by implementing the same two methods."""
+"""Object storage behind one small interface.
+
+A local folder in development. In production the same methods are implemented on a private S3 bucket and the
+browser uploads straight to a presigned URL; the upload contract the API exposes (intent, upload, complete)
+is already shaped for that, so nothing calling this changes.
+"""
 import uuid
 from pathlib import Path
 from typing import Protocol
@@ -10,6 +14,8 @@ from app.core.config import get_settings
 class Storage(Protocol):
     def put(self, key: str, data: bytes) -> None: ...
     def get(self, key: str) -> bytes: ...
+    def exists(self, key: str) -> bool: ...
+    def delete(self, key: str) -> None: ...
 
 
 class LocalStorage:
@@ -29,6 +35,12 @@ class LocalStorage:
 
     def get(self, key: str) -> bytes:
         return self._path(key).read_bytes()
+
+    def exists(self, key: str) -> bool:
+        return self._path(key).is_file()
+
+    def delete(self, key: str) -> None:
+        self._path(key).unlink(missing_ok=True)
 
 
 def get_storage() -> Storage:

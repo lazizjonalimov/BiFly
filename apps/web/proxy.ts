@@ -32,7 +32,7 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const signedIn = request.cookies.has("tms_session");
+  const signedIn = request.cookies.has("bifly_session");
   const isPublic = PUBLIC.some((p) => pathname === p);
   // Optimistic redirects only: real authorization happens in the API on every request.
   if (!signedIn && !isPublic) return withSecurityHeaders(NextResponse.redirect(new URL("/login", request.url)));

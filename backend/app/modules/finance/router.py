@@ -1,207 +1,301 @@
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query
-from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, literal, or_, select
+from sqlalchemy.orm import Session
 
-from app.core.audit import audit
+from app.core.crud import like
 from app.core.deps import Principal, get_db, require
-from app.core.errors import Conflict, NotFound
+from app.core.errors import NotFound
 from app.core.idempotency import run_idempotent
-from app.core.pagination import paginate
+from app.core.money import ZERO
+from app.core.pagination import Page, envelope, paginate, parse_sort
 from app.modules.customers.models import Customer
-from app.modules.finance.models import Invoice, InvoiceLine, Payment
+from app.modules.finance import schemas as s
+from app.modules.finance import service
+from app.modules.finance.models import Invoice, InvoiceLine, Payment, PaymentAllocation
 from app.modules.loads.models import Load
-from app.modules.loads.service import change_status, lock_load_or_404, next_number
+from app.modules.loads.schemas import Ref
+from app.modules.organizations.models import Organization, User
 
-router = APIRouter(prefix="/invoices", tags=["finance"])
-
-
-class InvoiceCreate(BaseModel):
-    load_id: uuid.UUID
+router = APIRouter(tags=["finance"])
+FAR = date(9999, 1, 1)
 
 
-class PaymentIn(BaseModel):
-    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
-    paid_on: date | None = None
-    method: Literal["ach", "check", "wire", "card", "cash", "other"] | None = None
-    reference: str | None = Field(default=None, max_length=80)
+# ---------------------------------------------------------------- invoices: reading
+def _paid():
+    return (select(func.coalesce(func.sum(PaymentAllocation.amount), 0))
+            .join(Payment, Payment.id == PaymentAllocation.payment_id)
+            .where(PaymentAllocation.invoice_id == Invoice.id, Payment.status == "recorded")
+            .correlate(Invoice).scalar_subquery())
 
 
-class LineOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    description: str
-    quantity: Decimal
-    unit_price: Decimal
-    amount: Decimal
+def _invoice_rows():
+    return select(Invoice, Customer.name, _paid().label("paid")).join(Customer, Customer.id == Invoice.customer_id)
 
 
-class PaymentOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: uuid.UUID
-    amount: Decimal
-    currency: str
-    paid_on: date
-    method: str | None
-    reference: str | None
-    created_at: datetime
+def _invoice_item(row, today: date) -> dict:
+    invoice, customer_name, paid = row
+    paid = Decimal(paid)
+    owed = invoice.status in ("draft", "issued")
+    overdue = invoice.status == "issued" and invoice.due_date is not None and invoice.due_date < today
+    return dict(
+        id=invoice.id, invoice_number=invoice.invoice_number, status=invoice.status,
+        customer=Ref(id=invoice.customer_id, name=customer_name), issue_date=invoice.issue_date,
+        due_date=invoice.due_date, currency=invoice.currency, total=invoice.total, paid=paid,
+        balance=(invoice.total - paid) if owed else ZERO, is_overdue=overdue,
+        days_overdue=(today - invoice.due_date).days if overdue else 0, created_at=invoice.created_at)
 
 
-class InvoiceOut(BaseModel):
-    id: uuid.UUID
-    invoice_number: str
-    load_id: uuid.UUID
-    load_number: str | None = None
-    customer_id: uuid.UUID
-    customer_name: str | None = None
-    status: str
-    issued_date: date
-    due_date: date
-    total: Decimal
-    currency: str
-    paid_total: Decimal
-    balance: Decimal
-    overdue: bool
-    created_at: datetime
-    lines: list[LineOut] = []
-    payments: list[PaymentOut] = []
-
-
-def _lock_invoice(db, invoice_id: uuid.UUID) -> Invoice:
-    inv = db.scalar(select(Invoice).where(Invoice.id == invoice_id).with_for_update())
-    if inv is None:
+def _invoice_detail(db: Session, p: Principal, invoice_id: uuid.UUID) -> s.InvoiceDetail:
+    row = db.execute(_invoice_rows().where(Invoice.id == invoice_id)).first()
+    if row is None:
         raise NotFound("Invoice not found")
-    return inv
+    invoice: Invoice = row[0]
+    org = db.get(Organization, p.org_id)
+    customer = db.get(Customer, invoice.customer_id)
+    lines = db.execute(select(InvoiceLine, Load.load_number).outerjoin(Load, Load.id == InvoiceLine.load_id)
+                       .where(InvoiceLine.invoice_id == invoice_id)
+                       .order_by(Load.load_number.nulls_last(), InvoiceLine.kind.desc(), InvoiceLine.id)).all()
+    payments = db.execute(
+        select(PaymentAllocation.amount, Payment).join(Payment, Payment.id == PaymentAllocation.payment_id)
+        .where(PaymentAllocation.invoice_id == invoice_id).order_by(Payment.received_on, Payment.created_at)).all()
+    issued_by = db.scalar(select(User.full_name).where(User.id == invoice.issued_by)) if invoice.issued_by else None
+
+    # A draft shows the customer as they are now; an issued invoice shows them as they were when it was issued.
+    snapshot = invoice.bill_to or {
+        "name": customer.legal_name or customer.name, "address": customer.billing_address,
+        "city": customer.billing_city, "state": customer.billing_state,
+        "postal_code": customer.billing_postal_code, "email": customer.billing_email, "phone": customer.phone,
+        "payment_terms_days": customer.payment_terms_days}
+    terms = snapshot.get("payment_terms_days")
+    paid = Decimal(row[2])
+    actions: list[str] = []
+    if p.can("invoices.create"):
+        if invoice.status == "draft":
+            actions += ["edit", "issue", "delete"]
+        elif invoice.status == "issued" and paid == 0:
+            actions.append("void")
+    if invoice.status == "issued" and p.can("payments.record"):
+        actions.append("record_payment")
+
+    return s.InvoiceDetail(
+        **_invoice_item(row, p.today()), notes=invoice.notes,
+        seller=s.Party(name=org.legal_name or org.name, address=org.address, city=org.city, state=org.state,
+                       postal_code=org.postal_code, email=org.email, phone=org.phone, dot_number=org.dot_number,
+                       mc_number=org.mc_number),
+        bill_to=s.Party(**{k: v for k, v in snapshot.items() if k in s.Party.model_fields}),
+        payment_terms_days=terms,
+        lines=[s.LineOut(id=line.id, load_id=line.load_id, load_number=number, kind=line.kind,
+                         description=line.description, quantity=line.quantity, unit_price=line.unit_price,
+                         amount=line.amount) for line, number in lines],
+        payments=[s.AppliedPayment(payment_id=pay.id, received_on=pay.received_on, method=pay.method,
+                                   reference=pay.reference, amount=amount, status=pay.status)
+                  for amount, pay in payments] if p.can("payments.read") else [],
+        issued_at=invoice.issued_at, issued_by_name=issued_by, voided_at=invoice.voided_at,
+        void_reason=invoice.void_reason, allowed_actions=actions)
 
 
-def _views(db, invoices: list[Invoice], *, today: date, full: bool) -> list[InvoiceOut]:
-    """Build API views for many invoices with a fixed number of queries."""
-    if not invoices:
-        return []
-    ids = [i.id for i in invoices]
-    paid = dict(db.execute(select(Payment.invoice_id, func.sum(Payment.amount))
-                           .where(Payment.invoice_id.in_(ids)).group_by(Payment.invoice_id)).all())
-    load_numbers = dict(db.execute(select(Load.id, Load.load_number)
-                                   .where(Load.id.in_({i.load_id for i in invoices}))).all())
-    customers = dict(db.execute(select(Customer.id, Customer.name)
-                                .where(Customer.id.in_({i.customer_id for i in invoices}))).all())
-    lines: dict[uuid.UUID, list[LineOut]] = {}
-    payments: dict[uuid.UUID, list[PaymentOut]] = {}
-    if full:
-        for ln in db.scalars(select(InvoiceLine).where(InvoiceLine.invoice_id.in_(ids))):
-            lines.setdefault(ln.invoice_id, []).append(LineOut.model_validate(ln))
-        for pay in db.scalars(select(Payment).where(Payment.invoice_id.in_(ids)).order_by(Payment.created_at)):
-            payments.setdefault(pay.invoice_id, []).append(PaymentOut.model_validate(pay))
-    out = []
-    for inv in invoices:
-        paid_total = Decimal(paid.get(inv.id) or 0)
-        out.append(InvoiceOut(
-            id=inv.id, invoice_number=inv.invoice_number, load_id=inv.load_id, customer_id=inv.customer_id,
-            status=inv.status, issued_date=inv.issued_date, due_date=inv.due_date, total=inv.total,
-            currency=inv.currency,
-            paid_total=paid_total, balance=inv.total - paid_total,
-            overdue=inv.status == "sent" and inv.due_date < today, created_at=inv.created_at,
-            load_number=load_numbers.get(inv.load_id), customer_name=customers.get(inv.customer_id),
-            lines=lines.get(inv.id, []), payments=payments.get(inv.id, [])))
-    return out
+@router.get("/invoices", response_model=Page[s.InvoiceListItem])
+def list_invoices(params: Annotated[s.InvoiceListParams, Query()], p: Principal = Depends(require("invoices.read")),
+                  db: Session = Depends(get_db)):
+    today = p.today()
+    stmt = _invoice_rows()
+    if params.status:
+        stmt = stmt.where(Invoice.status == params.status)
+    if params.customer_id:
+        stmt = stmt.where(Invoice.customer_id == params.customer_id)
+    if params.overdue is not None:
+        overdue = (Invoice.status == "issued") & (Invoice.due_date < today)
+        stmt = stmt.where(overdue if params.overdue else ~overdue)
+    if params.issued_from:
+        stmt = stmt.where(Invoice.issue_date >= params.issued_from)
+    if params.issued_to:
+        stmt = stmt.where(Invoice.issue_date <= params.issued_to)
+    if params.q:
+        pattern = like(params.q.strip())
+        stmt = stmt.where(or_(Invoice.invoice_number.ilike(pattern), Customer.name.ilike(pattern)))
+    sortable = {"created_at": Invoice.created_at, "total": Invoice.total, "customer": Customer.name,
+                "issue_date": func.coalesce(Invoice.issue_date, literal(FAR)),
+                "due_date": func.coalesce(Invoice.due_date, literal(FAR))}
+    rows, info = paginate(db, stmt, parse_sort(params.sort, sortable, "-created_at"), Invoice.id,
+                          cursor=params.cursor, limit=params.limit, count=params.count)
+    return envelope([s.InvoiceListItem(**_invoice_item(r, today)) for r in rows], info)
 
 
-def _view(db, inv: Invoice, p: Principal) -> InvoiceOut:
-    return _views(db, [inv], today=p.today(), full=True)[0]
+@router.get("/invoices/{invoice_id}", response_model=s.InvoiceDetail)
+def get_invoice(invoice_id: uuid.UUID, p: Principal = Depends(require("invoices.read")),
+                db: Session = Depends(get_db)):
+    return _invoice_detail(db, p, invoice_id)
 
 
-class InvoicePage(BaseModel):
-    items: list[InvoiceOut]
-    next_cursor: str | None = None
-
-
-@router.get("", response_model=InvoicePage)
-def list_invoices(cursor: str | None = None, limit: int = Query(50, ge=1, le=200),
-                  status: Literal["sent", "paid", "void", "overdue"] | None = None,
-                  customer_id: uuid.UUID | None = None,
-                  p: Principal = Depends(require("invoices:read")), db=Depends(get_db)):
-    stmt = select(Invoice)
-    if status == "overdue":
-        stmt = stmt.where(Invoice.status == "sent", Invoice.due_date < p.today())
-    elif status:
-        stmt = stmt.where(Invoice.status == status)
-    if customer_id:
-        stmt = stmt.where(Invoice.customer_id == customer_id)
-    rows, nxt = paginate(db, stmt, Invoice, cursor, limit)
-    return {"items": _views(db, rows, today=p.today(), full=False), "next_cursor": nxt}
-
-
-@router.get("/{invoice_id}", response_model=InvoiceOut)
-def get_invoice(invoice_id: uuid.UUID, p: Principal = Depends(require("invoices:read")), db=Depends(get_db)):
-    inv = db.get(Invoice, invoice_id)
-    if inv is None:
-        raise NotFound("Invoice not found")
-    return _view(db, inv, p)
-
-
-@router.post("", response_model=InvoiceOut, status_code=201)
-def create_invoice(body: InvoiceCreate, p: Principal = Depends(require("invoices:write")), db=Depends(get_db),
-                   idempotency_key: str | None = Header(default=None)):
-    """Invoice a completed (delivery-confirmed) load for its agreed rate."""
+# ---------------------------------------------------------------- invoices: changing
+@router.post("/invoices", response_model=s.InvoiceDetail, status_code=201)
+def create_invoice(body: s.InvoiceCreate, p: Principal = Depends(require("invoices.create")),
+                   db: Session = Depends(get_db), idempotency_key: Annotated[str | None, Header()] = None):
+    """Start a draft from completed loads. Nothing is final until the draft is issued."""
     def work():
-        load = lock_load_or_404(db, body.load_id)
-        if load.status != "completed":
-            raise Conflict(f"Only completed loads can be invoiced (this load is {load.status})", code="not_invoiceable")
-        cust = db.get(Customer, load.customer_id)
-        issued = p.today()
-        inv = Invoice(organization_id=p.org_id, invoice_number=next_number(db, p.org_id, "invoice_seq", "INV"),
-                      load_id=load.id, customer_id=load.customer_id, status="sent", issued_date=issued,
-                      due_date=issued + timedelta(days=cust.payment_terms_days), total=load.customer_rate,
-                      currency=load.currency)
-        db.add(inv)
-        db.flush()
-        db.add(InvoiceLine(organization_id=p.org_id, invoice_id=inv.id,
-                           description=f"Line haul — load {load.load_number}", quantity=Decimal("1"),
-                           unit_price=load.customer_rate, amount=load.customer_rate))
-        change_status(db, p, load, "invoiced", f"Invoice {inv.invoice_number} issued")
-        audit(db, p, "invoice.created", "invoice", inv.id, {"load_id": str(load.id), "total": str(inv.total)})
-        db.flush()
-        return 201, _view(db, inv, p).model_dump(mode="json")
-    return run_idempotent(db, p, idempotency_key, "invoice.create", body.model_dump(mode="json"), work)
+        invoice = service.create_draft(db, p, body)
+        return 201, _invoice_detail(db, p, invoice.id)
+    return run_idempotent(db, p, idempotency_key, "POST /invoices", body.model_dump(mode="json"), work)
 
 
-@router.post("/{invoice_id}/payments", response_model=InvoiceOut, status_code=201)
-def add_payment(invoice_id: uuid.UUID, body: PaymentIn, p: Principal = Depends(require("payments:write")),
-                db=Depends(get_db), idempotency_key: str | None = Header(default=None)):
-    def work():
-        inv = _lock_invoice(db, invoice_id)
-        if inv.status != "sent":
-            raise Conflict(f"A {inv.status} invoice cannot receive payments")
-        paid = Decimal(db.scalar(select(func.coalesce(func.sum(Payment.amount), 0)).where(Payment.invoice_id == inv.id)))
-        balance = inv.total - paid
-        if body.amount > balance:
-            raise Conflict(f"Payment exceeds the outstanding balance of {balance}", code="overpayment")
-        pay = Payment(organization_id=p.org_id, invoice_id=inv.id, amount=body.amount, currency=inv.currency,
-                      paid_on=body.paid_on or p.today(), method=body.method, reference=body.reference,
-                      created_by=p.user_id)
-        db.add(pay)
-        db.flush()
-        audit(db, p, "payment.recorded", "invoice", inv.id, {"amount": str(body.amount)})
-        if body.amount == balance:
-            inv.status = "paid"
-            change_status(db, p, lock_load_or_404(db, inv.load_id), "paid", f"Invoice {inv.invoice_number} paid in full")
-        db.flush()
-        return 201, _view(db, inv, p).model_dump(mode="json")
-    return run_idempotent(db, p, idempotency_key, f"invoice.pay:{invoice_id}", body.model_dump(mode="json"), work)
-
-
-@router.post("/{invoice_id}/void", response_model=InvoiceOut)
-def void_invoice(invoice_id: uuid.UUID, p: Principal = Depends(require("invoices:write")), db=Depends(get_db)):
-    inv = _lock_invoice(db, invoice_id)
-    if inv.status != "sent":
-        raise Conflict(f"A {inv.status} invoice cannot be voided")
-    if db.scalar(select(func.count()).select_from(Payment).where(Payment.invoice_id == inv.id)):
-        raise Conflict("An invoice with recorded payments cannot be voided")
-    inv.status = "void"
-    change_status(db, p, lock_load_or_404(db, inv.load_id), "completed", f"Invoice {inv.invoice_number} voided")
-    audit(db, p, "invoice.voided", "invoice", inv.id)
+@router.patch("/invoices/{invoice_id}", response_model=s.InvoiceDetail)
+def update_invoice(invoice_id: uuid.UUID, body: s.InvoicePatch, p: Principal = Depends(require("invoices.create")),
+                   db: Session = Depends(get_db)):
+    service.update_draft(db, p, invoice_id, body)
     db.commit()
-    return _view(db, inv, p)
+    return _invoice_detail(db, p, invoice_id)
+
+
+@router.put("/invoices/{invoice_id}/loads", response_model=s.InvoiceDetail)
+def set_invoice_loads(invoice_id: uuid.UUID, body: s.InvoiceLoads, p: Principal = Depends(require("invoices.create")),
+                      db: Session = Depends(get_db)):
+    """Choose which loads a draft covers. Its lines are rebuilt from them."""
+    service.set_loads(db, p, invoice_id, body.load_ids)
+    db.commit()
+    return _invoice_detail(db, p, invoice_id)
+
+
+@router.post("/invoices/{invoice_id}/lines", response_model=s.InvoiceDetail, status_code=201)
+def add_invoice_line(invoice_id: uuid.UUID, body: s.AdjustmentIn, p: Principal = Depends(require("invoices.create")),
+                     db: Session = Depends(get_db)):
+    service.add_adjustment(db, p, invoice_id, body)
+    db.commit()
+    return _invoice_detail(db, p, invoice_id)
+
+
+@router.delete("/invoices/{invoice_id}/lines/{line_id}", response_model=s.InvoiceDetail)
+def remove_invoice_line(invoice_id: uuid.UUID, line_id: uuid.UUID,
+                        p: Principal = Depends(require("invoices.create")), db: Session = Depends(get_db)):
+    service.remove_adjustment(db, p, invoice_id, line_id)
+    db.commit()
+    return _invoice_detail(db, p, invoice_id)
+
+
+@router.delete("/invoices/{invoice_id}", status_code=204)
+def delete_invoice(invoice_id: uuid.UUID, p: Principal = Depends(require("invoices.create")),
+                   db: Session = Depends(get_db)):
+    """Discard a draft. Its loads go back to being ready to invoice."""
+    service.delete_draft(db, p, invoice_id)
+    db.commit()
+
+
+@router.post("/invoices/{invoice_id}/issue", response_model=s.InvoiceDetail)
+def issue_invoice(invoice_id: uuid.UUID, p: Principal = Depends(require("invoices.create")),
+                  db: Session = Depends(get_db), idempotency_key: Annotated[str | None, Header()] = None):
+    """Number the invoice, fix its contents and start the clock on its due date. This can't be undone, only
+    voided."""
+    def work():
+        service.issue(db, p, invoice_id)
+        return 200, _invoice_detail(db, p, invoice_id)
+    return run_idempotent(db, p, idempotency_key, f"POST /invoices/{invoice_id}/issue", {}, work)
+
+
+@router.post("/invoices/{invoice_id}/void", response_model=s.InvoiceDetail)
+def void_invoice(invoice_id: uuid.UUID, body: s.VoidIn, p: Principal = Depends(require("invoices.create")),
+                 db: Session = Depends(get_db)):
+    service.void(db, p, invoice_id, body.reason)
+    db.commit()
+    return _invoice_detail(db, p, invoice_id)
+
+
+# ---------------------------------------------------------------- payments
+def _applied():
+    return (select(func.coalesce(func.sum(PaymentAllocation.amount), 0))
+            .where(PaymentAllocation.payment_id == Payment.id).correlate(Payment).scalar_subquery())
+
+
+def _payment_rows():
+    return select(Payment, Customer.name, _applied().label("applied")).join(Customer, Customer.id == Payment.customer_id)
+
+
+def _payment_item(row) -> dict:
+    payment, customer_name, applied = row
+    live = payment.status == "recorded"
+    applied = Decimal(applied) if live else ZERO
+    return dict(
+        id=payment.id, customer=Ref(id=payment.customer_id, name=customer_name), amount=payment.amount,
+        applied=applied, unapplied=(payment.amount - applied) if live else ZERO, currency=payment.currency,
+        received_on=payment.received_on, method=payment.method, reference=payment.reference,
+        status=payment.status, created_at=payment.created_at)
+
+
+def _payment_detail(db: Session, payment_id: uuid.UUID) -> s.PaymentDetail:
+    row = db.execute(_payment_rows().where(Payment.id == payment_id)).first()
+    if row is None:
+        raise NotFound("Payment not found")
+    payment: Payment = row[0]
+    allocations = db.execute(
+        select(PaymentAllocation, Invoice.invoice_number).join(Invoice, Invoice.id == PaymentAllocation.invoice_id)
+        .where(PaymentAllocation.payment_id == payment_id).order_by(PaymentAllocation.created_at)).all()
+    recorded_by = db.scalar(select(User.full_name).where(User.id == payment.created_by)) if payment.created_by else None
+    return s.PaymentDetail(
+        **_payment_item(row), notes=payment.notes,
+        allocations=[s.AllocationOut(invoice_id=a.invoice_id, invoice_number=number, amount=a.amount)
+                     for a, number in allocations],
+        reversed_at=payment.reversed_at, reversal_reason=payment.reversal_reason, recorded_by_name=recorded_by)
+
+
+@router.get("/payments", response_model=Page[s.PaymentListItem])
+def list_payments(params: Annotated[s.PaymentListParams, Query()], p: Principal = Depends(require("payments.read")),
+                  db: Session = Depends(get_db)):
+    stmt = _payment_rows()
+    if params.status:
+        stmt = stmt.where(Payment.status == params.status)
+    if params.customer_id:
+        stmt = stmt.where(Payment.customer_id == params.customer_id)
+    if params.received_from:
+        stmt = stmt.where(Payment.received_on >= params.received_from)
+    if params.received_to:
+        stmt = stmt.where(Payment.received_on <= params.received_to)
+    if params.q:
+        pattern = like(params.q.strip())
+        stmt = stmt.where(or_(Payment.reference.ilike(pattern), Customer.name.ilike(pattern)))
+    sortable = {"created_at": Payment.created_at, "received_on": Payment.received_on, "amount": Payment.amount,
+                "customer": Customer.name}
+    rows, info = paginate(db, stmt, parse_sort(params.sort, sortable, "-created_at"), Payment.id,
+                          cursor=params.cursor, limit=params.limit, count=params.count)
+    return envelope([s.PaymentListItem(**_payment_item(r)) for r in rows], info)
+
+
+@router.get("/payments/{payment_id}", response_model=s.PaymentDetail)
+def get_payment(payment_id: uuid.UUID, p: Principal = Depends(require("payments.read")),
+                db: Session = Depends(get_db)):
+    return _payment_detail(db, payment_id)
+
+
+@router.post("/payments", response_model=s.PaymentDetail, status_code=201)
+def record_payment(body: s.PaymentCreate, p: Principal = Depends(require("payments.record")),
+                   db: Session = Depends(get_db), idempotency_key: Annotated[str | None, Header()] = None):
+    """Record money received and, optionally, which invoices it pays. A retry with the same Idempotency-Key
+    never records it twice."""
+    def work():
+        payment = service.record_payment(db, p, body)
+        return 201, _payment_detail(db, payment.id)
+    return run_idempotent(db, p, idempotency_key, "POST /payments", body.model_dump(mode="json"), work)
+
+
+@router.post("/payments/{payment_id}/allocations", response_model=s.PaymentDetail)
+def apply_payment(payment_id: uuid.UUID, body: s.AllocationsIn, p: Principal = Depends(require("payments.record")),
+                  db: Session = Depends(get_db)):
+    service.apply_payment(db, p, payment_id, body.allocations)
+    db.commit()
+    return _payment_detail(db, payment_id)
+
+
+@router.post("/payments/{payment_id}/reverse", response_model=s.PaymentDetail)
+def reverse_payment(payment_id: uuid.UUID, body: s.ReverseIn, p: Principal = Depends(require("payments.record")),
+                    db: Session = Depends(get_db)):
+    """Undo a payment recorded by mistake. The record stays; the invoices it paid are open again."""
+    service.reverse_payment(db, p, payment_id, body.reason)
+    db.commit()
+    return _payment_detail(db, payment_id)
+
+
+@router.get("/finance/receivables", response_model=s.Receivables)
+def receivables(p: Principal = Depends(require("invoices.read")), db: Session = Depends(get_db)):
+    return service.receivables(db, p)

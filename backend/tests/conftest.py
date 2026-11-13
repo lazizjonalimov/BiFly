@@ -1,7 +1,8 @@
-"""Tests run against a real PostgreSQL database, connecting as the restricted runtime role so that
-row-level security is exercised exactly as in production.
+"""Tests run against a real PostgreSQL database, connecting as the restricted runtime role, so row-level
+security is exercised exactly as in production.
 
-Defaults match docker-compose / local dev; override with TMS_TEST_DATABASE_URL and TMS_TEST_OWNER_URL.
+Defaults match docker-compose and local development; override with BIFLY_TEST_DATABASE_URL and
+BIFLY_TEST_OWNER_URL.
 """
 import os
 import tempfile
@@ -9,15 +10,17 @@ import uuid
 
 import pytest
 
-APP_URL = os.environ.get("TMS_TEST_DATABASE_URL", "postgresql+psycopg://tms_app:tms_app_dev@localhost:5432/tms_test")
-OWNER_URL = os.environ.get("TMS_TEST_OWNER_URL", "postgresql+psycopg://tms_owner:tms_owner_dev@localhost:5432/tms_test")
+APP_URL = os.environ.get("BIFLY_TEST_DATABASE_URL",
+                         "postgresql+psycopg://bifly_app:bifly_app_dev@localhost:5432/bifly_test")
+OWNER_URL = os.environ.get("BIFLY_TEST_OWNER_URL",
+                           "postgresql+psycopg://bifly_owner:bifly_owner_dev@localhost:5432/bifly_test")
 
 os.environ.update({
-    "TMS_ENV": "test",
-    "TMS_DATABASE_URL": APP_URL,
-    "TMS_MIGRATION_DATABASE_URL": OWNER_URL,
+    "BIFLY_ENV": "test",
+    "BIFLY_DATABASE_URL": APP_URL,
+    "BIFLY_MIGRATION_DATABASE_URL": OWNER_URL,
     "ALEMBIC_URL": OWNER_URL,
-    "TMS_STORAGE_DIR": tempfile.mkdtemp(prefix="tms-test-storage-"),
+    "BIFLY_STORAGE_DIR": tempfile.mkdtemp(prefix="bifly-test-storage-"),
 })
 
 from alembic.config import Config  # noqa: E402
@@ -27,6 +30,8 @@ from sqlalchemy import create_engine, text  # noqa: E402
 from alembic import command  # noqa: E402
 
 PASSWORD = "correct-horse-battery"
+PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -49,11 +54,29 @@ def client(_database):
         yield c
 
 
-class Api:
-    """A client bound to one user's token."""
+@pytest.fixture
+def sql():
+    """A connection as the restricted runtime role, for checking the database's own defences."""
+    engine = create_engine(APP_URL)
+    yield engine
+    engine.dispose()
 
-    def __init__(self, client: TestClient, token: str, org_id: str):
-        self.c, self.h, self.org_id = client, {"Authorization": f"Bearer {token}"}, org_id
+
+@pytest.fixture
+def owner_sql():
+    """A connection as the schema owner, for arranging states the API refuses to create."""
+    engine = create_engine(OWNER_URL)
+    yield engine
+    engine.dispose()
+
+
+class Api:
+    """A client bound to one user's session in one company."""
+
+    def __init__(self, client: TestClient, token: str, org_id: str, email: str = ""):
+        self.c, self.token, self.org_id, self.email = client, token, org_id, email
+        self.h = {"Authorization": f"Bearer {token}"}
+        self.user_id: str | None = None
 
     def _go(self, method, url, expect=None, headers=None, **kw):
         r = self.c.request(method, "/api/v1" + url, headers={**self.h, **(headers or {})}, **kw)
@@ -63,16 +86,41 @@ class Api:
 
     def get(self, url, expect=200, **kw): return self._go("GET", url, expect, **kw)
     def post(self, url, json=None, expect=None, **kw): return self._go("POST", url, expect, json=json, **kw)
+    def put(self, url, json=None, expect=None, **kw): return self._go("PUT", url, expect, json=json, **kw)
     def patch(self, url, json=None, expect=None, **kw): return self._go("PATCH", url, expect, json=json, **kw)
     def delete(self, url, expect=None, **kw): return self._go("DELETE", url, expect, **kw)
 
+    def items(self, url, **params) -> list[dict]:
+        return self.get(url, params=params).json()["items"]
+
+    def error(self, method: str, url: str, status: int, code: str, **kw) -> dict:
+        """Call expecting a failure; returns the error body."""
+        r = self._go(method, url, status, **kw)
+        body = r.json()["error"]
+        assert body["code"] == code, body
+        return body
+
     def add_user(self, role: str) -> "Api":
         email = f"{role}-{uuid.uuid4().hex[:8]}@example.com"
-        u = self.post("/users", {"email": email, "full_name": role.title(), "password": PASSWORD, "role": role}, 201).json()
-        tok = self.c.post("/api/v1/auth/login", json={"email": email, "password": PASSWORD}).json()["access_token"]
-        api = Api(self.c, tok, self.org_id)
-        api.user_id = u["user_id"]
+        member = self.post("/members", {"email": email, "full_name": role.replace("_", " ").title(),
+                                        "password": PASSWORD, "role": role}, 201).json()
+        api = login(self.c, email, self.org_id)
+        api.user_id = member["user_id"]
         return api
+
+    def switch(self, org_id: str) -> "Api":
+        session = self.post("/auth/switch", {"organization_id": org_id}, 200).json()
+        api = Api(self.c, session["access_token"], org_id, self.email)
+        api.user_id = self.user_id
+        return api
+
+
+def login(client: TestClient, email: str, org_id: str | None = None, password: str = PASSWORD) -> Api:
+    r = client.post("/api/v1/auth/login", json={"email": email, "password": password,
+                                                 **({"organization_id": org_id} if org_id else {})})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    return Api(client, body["access_token"], body["organization"]["id"], email)
 
 
 @pytest.fixture
@@ -82,9 +130,7 @@ def make_org(client):
         r = client.post("/api/v1/auth/signup", json={"organization_name": name, "full_name": "Olive Owner",
                                                       "email": email, "password": PASSWORD, **signup})
         assert r.status_code == 201, r.text
-        api = Api(client, r.json()["access_token"], r.json()["organization"]["id"])
-        api.email = email
-        return api
+        return Api(client, r.json()["access_token"], r.json()["organization"]["id"], email)
     return _make
 
 
@@ -93,23 +139,71 @@ def org(make_org) -> Api:
     return make_org()
 
 
-STOPS = [
-    {"type": "pickup", "name": "Shipper DC", "city": "Chicago", "state": "IL", "appt_start": "2031-03-10T14:00:00Z"},
-    {"type": "delivery", "name": "Receiver", "city": "Dallas", "state": "TX", "appt_start": "2031-03-12T14:00:00Z"},
-]
+def stops(pickup: str = "2031-03-10T14:00:00Z", delivery: str = "2031-03-12T14:00:00Z") -> list[dict]:
+    return [
+        {"type": "pickup", "name": "Shipper DC", "city": "Chicago", "state": "IL", "appt_start": pickup},
+        {"type": "delivery", "name": "Receiver", "city": "Dallas", "state": "TX", "appt_start": delivery},
+    ]
 
 
-def seed_basics(api: Api) -> dict:
-    """Customer, driver (with login), truck and trailer for one org."""
-    cust = api.post("/customers", {"name": "Globex", "payment_terms_days": 15}, 201).json()
-    driver_api = api.add_user("driver")
-    driver = api.post("/drivers", {"first_name": "Dana", "last_name": "Driver", "cdl_expiry": "2035-01-01",
-                                   "medical_cert_expiry": "2035-01-01", "user_id": driver_api.user_id}, 201).json()
-    truck = api.post("/vehicles", {"unit_number": f"T-{uuid.uuid4().hex[:5]}", "insurance_expiry": "2035-01-01"}, 201).json()
-    trailer = api.post("/trailers", {"unit_number": f"TR-{uuid.uuid4().hex[:5]}", "type": "dry_van"}, 201).json()
-    return {"customer": cust, "driver": driver, "driver_api": driver_api, "truck": truck, "trailer": trailer}
+def seed(api: Api, *, with_login: bool = False) -> dict:
+    """A customer, a qualified driver, a truck and a trailer."""
+    out = {"customer": api.post("/customers", {"name": "Globex", "payment_terms_days": 15}, 201).json()}
+    driver = {"first_name": "Dana", "last_name": "Driver", "cdl_number": "D1234567", "cdl_state": "il",
+              "cdl_expiry": "2035-01-01", "medical_cert_expiry": "2035-01-01"}
+    if with_login:
+        out["driver_api"] = api.add_user("driver")
+        driver["user_id"] = out["driver_api"].user_id
+    out["driver"] = api.post("/drivers", driver, 201).json()
+    dates = {"insurance_expiry": "2035-01-01", "registration_expiry": "2035-01-01", "inspection_expiry": "2035-01-01"}
+    out["truck"] = api.post("/vehicles", {"unit_number": f"T-{uuid.uuid4().hex[:5]}", **dates}, 201).json()
+    out["trailer"] = api.post("/trailers", {"unit_number": f"TR-{uuid.uuid4().hex[:5]}", "type": "dry_van", **dates},
+                              201).json()
+    return out
 
 
 def new_load(api: Api, customer_id: str, **extra) -> dict:
-    return api.post("/loads", {"customer_id": customer_id, "commodity": "Paper", "customer_rate": "2500.00",
-                               "stops": STOPS, **extra}, 201).json()
+    body = {"customer_id": customer_id, "commodity": "Paper", "customer_rate": "2500.00", "miles": 920,
+            "stops": stops(), **extra}
+    return api.post("/loads", body, 201).json()
+
+
+def assign(api: Api, load: dict, s: dict, expect: int = 201, **extra):
+    r = api.post("/dispatch/assignments", {
+        "load_id": load["id"], "driver_id": s["driver"]["id"], "vehicle_id": s["truck"]["id"],
+        "trailer_id": s["trailer"]["id"], "version": load["version"], **extra}, expect)
+    return r.json()
+
+
+def act(api: Api, load: dict, action: str, expect: int = 200, **extra) -> dict:
+    """Run a lifecycle action using the load's current version."""
+    return api.post(f"/loads/{load['id']}/transitions", {"action": action, "version": load["version"], **extra},
+                    expect).json()
+
+
+def upload(api: Api, entity_type: str, entity_id: str, doc_type: str = "pod", *, content: bytes = PDF,
+           filename: str = "paperwork.pdf", content_type: str = "application/pdf", **extra) -> dict:
+    """The three-step upload: intent, file, complete."""
+    intent = api.post("/documents/upload-intents", {
+        "filename": filename, "content_type": content_type, "size_bytes": len(content), "type": doc_type,
+        "entity_type": entity_type, "entity_id": entity_id, **extra}, 201).json()
+    api.put(intent["upload"]["url"], content=content, headers=intent["upload"]["headers"], expect=204)
+    return api.post(f"/documents/{intent['document']['id']}/complete", expect=200).json()
+
+
+def deliver(api: Api, load: dict, s: dict) -> dict:
+    """Assign, dispatch and run the truck through both stops."""
+    load = assign(api, load, s)
+    for action in ("dispatch", "arrive", "depart", "arrive", "depart"):
+        load = act(api, load, action)
+    assert load["status"] == "delivered", load["status"]
+    return load
+
+
+def complete(api: Api, s: dict, **extra) -> dict:
+    """A load all the way to completed, ready to invoice."""
+    load = deliver(api, new_load(api, s["customer"]["id"], **extra), s)
+    upload(api, "load", load["id"])
+    load = api.get(f"/loads/{load['id']}").json()
+    assert load["status"] == "pod_review"
+    return act(api, load, "approve_pod")
