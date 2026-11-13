@@ -7,6 +7,7 @@ import { EmptyState, ErrorState } from "@/components/feedback/states";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTerminalPreference } from "@/hooks/use-terminal-preference";
 import { api, unwrap } from "@/lib/api/client";
 import type { Schema } from "@/lib/api/types";
 import { useOrg, useSession, useWorkspacePath } from "@/lib/auth/session";
@@ -145,7 +146,8 @@ function Exceptions() {
 
 export function Dashboard() {
   const { user, organization } = useSession();
-  const summary = useQuery({ queryKey: [organization.id, "dashboard", "summary"], queryFn: () => unwrap(api.GET("/api/v1/dashboard/summary")) });
+  const [terminal] = useTerminalPreference();
+  const summary = useQuery({ queryKey: [organization.id, "dashboard", "summary", terminal], queryFn: () => unwrap(api.GET("/api/v1/dashboard/summary", { params: { query: { terminal_id: terminal || undefined } } })) });
 
   return (
     <>

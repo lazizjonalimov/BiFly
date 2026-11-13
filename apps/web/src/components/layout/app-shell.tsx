@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { CompanySwitcher } from "@/components/layout/company-switcher";
+import { GlobalSearch, QuickCreate } from "@/components/layout/global-search";
 import { LogoMark } from "@/components/layout/logo";
+import { TerminalSelector } from "@/components/layout/terminal-selector";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -115,7 +117,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {collapsed ? <PanelLeftOpenIcon /> : <PanelLeftCloseIcon />}
           </Button>
           <CompanySwitcher />
-          <div className="flex-1" />
+          <TerminalSelector />
+          <div className="flex flex-1 justify-center px-2">
+            <GlobalSearch />
+          </div>
+          <QuickCreate />
           <UserMenu />
         </header>
         {org.status === "archived" ? (
