@@ -167,3 +167,26 @@ def test_company_creation_is_audited_in_the_new_company(org):
     created = add_company(org, "Audited Co", copy_from=org.org_id, include=["customers"]).json()
     entry = org.switch(created["id"]).items("/audit-logs", action="organization.created")[0]
     assert entry["data"]["copied_from"] == org.org_id and entry["actor_name"] == "Olive Owner"
+
+
+def test_two_companies_with_the_same_name_never_collide_on_their_address(client, make_org, monkeypatch):
+    """The random tail of a company's web address can repeat. Sign-up and adding a company must both shrug
+    that off and pick another, not tell the customer their company "already exists"."""
+    from app.modules.organizations import auth_router
+
+    real = auth_router.make_slug
+    first = make_org("Acme Trucking")
+    taken = first.get("/auth/me").json()["organization"]["slug"]
+
+    # Every address the generator offers is the one already in use, three times running.
+    offers = iter([taken, taken, taken])
+    monkeypatch.setattr(auth_router, "make_slug", lambda name: next(offers, None) or real(name))
+    second = make_org("Acme Trucking")
+    assert second.get("/auth/me").json()["organization"]["slug"] not in ("", taken)
+
+    offers = iter([taken, taken])
+    added = second.post("/account/companies", {"name": "Acme Trucking"}, 201).json()
+    assert added["slug"] != taken and added["slug"].startswith("acme-trucking-")
+    # Nothing was left half-created by the attempts that clashed.
+    assert second.get("/account/companies").json()["active_count"] == 2
+    assert first.get("/account/companies").json()["active_count"] == 1

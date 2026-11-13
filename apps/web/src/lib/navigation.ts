@@ -1,4 +1,4 @@
-import { Building2Icon, LayoutDashboardIcon, UsersIcon, type LucideIcon } from "lucide-react";
+import { Building2Icon, ContainerIcon, IdCardIcon, LayoutDashboardIcon, TruckIcon, UserCogIcon, UsersIcon, WarehouseIcon, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -24,11 +24,20 @@ export const NAVIGATION: NavGroup[] = [
   },
   {
     label: "Directory",
-    items: [{ label: "Customers", path: "customers", icon: UsersIcon, anyOf: ["customers.read"] }],
+    items: [
+      { label: "Customers", path: "customers", icon: UsersIcon, anyOf: ["customers.read"] },
+      { label: "Drivers", path: "drivers", icon: IdCardIcon, anyOf: ["drivers.read"] },
+      { label: "Trucks", path: "equipment/trucks", icon: TruckIcon, anyOf: ["equipment.read"] },
+      { label: "Trailers", path: "equipment/trailers", icon: ContainerIcon, anyOf: ["equipment.read"] },
+    ],
   },
   {
     label: "Administration",
-    items: [{ label: "Companies", path: "settings/companies", icon: Building2Icon, accountOwner: true }],
+    items: [
+      { label: "Team", path: "settings/team", icon: UserCogIcon, anyOf: ["users.manage"] },
+      { label: "Terminals", path: "settings/terminals", icon: WarehouseIcon, anyOf: ["organization.manage"] },
+      { label: "Companies", path: "settings/companies", icon: Building2Icon, accountOwner: true },
+    ],
   },
 ];
 
@@ -38,6 +47,12 @@ export const SEGMENT_LABELS: Record<string, string> = {
   settings: "Settings",
   companies: "Companies",
   customers: "Customers",
+  drivers: "Drivers",
+  equipment: "Equipment",
+  trucks: "Trucks",
+  trailers: "Trailers",
+  team: "Team",
+  terminals: "Terminals",
 };
 
 /**
@@ -45,7 +60,7 @@ export const SEGMENT_LABELS: Record<string, string> = {
  * dashboard's exceptions, search results). A resource whose screen isn't built yet has no entry, and the
  * link is simply not offered.
  */
-const RESOURCE_PATHS: Record<string, string> = { customers: "customers" };
+const RESOURCE_PATHS: Record<string, string> = { customers: "customers", drivers: "drivers", vehicles: "equipment/trucks", trailers: "equipment/trailers" };
 
 export function resourcePath(resource: string): string | null {
   return RESOURCE_PATHS[resource] ?? null;

@@ -8,15 +8,15 @@ this repository. The web column is the screens; the API column is the rules behi
 | 1 | Audit and foundation | Done: [audit](implementation-audit.md), [decisions](decisions) | Done: mandated stack, generated API types, session layer, unit and browser tests |
 | 2 | Design system and application shell | n/a | Done: theme (light and dark), components, sidebar, user menu, breadcrumbs. Table standard, search and notifications arrive with the first lists |
 | 3 | Sign-in and company switching | Done | Done: sign-up, sign-in, choose a company, switch, add with a copy, archive, restore |
-| 4 | Customers | Done | Not started |
-| 5 | Drivers and equipment | Done | Not started |
+| 4 | Customers | Done | Done: list, form, detail with contacts and addresses, archive and restore |
+| 5 | Drivers and equipment | Done | Done: drivers with compliance and qualification file, trucks, trailers, terminals. Detail pages for units arrive with documents and maintenance |
 | 6 | Loads | Done | Not started |
 | 7 | Dispatch board and assignment | Done | Not started |
 | 8 | Documents | Done | Not started |
 | 9 | Safety and compliance | Done: status, expirations queue, blocking. Inspections not started | Not started |
 | 10 | Fleet and maintenance | Not started (work orders, out-of-service flow) | Not started |
 | 11 | Finance | Done: invoices, payments, aging. Not started: expenses, fuel, driver settlements | Not started |
-| 12 | Reports and administration | Done: dashboard, exceptions, search, four reports, CSV, audit log, role matrix | Dashboard and companies done; the rest not started |
+| 12 | Reports and administration | Done: dashboard, exceptions, search, four reports, CSV, audit log, role matrix | Done: dashboard, companies, team, terminals. Not started: company settings, role matrix, audit log, reports, search |
 
 ## What "Done" covers in the API
 
@@ -30,9 +30,8 @@ this repository. The web column is the screens; the API column is the rules behi
 
 ## Next
 
-1. **Directory screens**: customers, drivers, trucks, trailers, terminals, team, with the shared table
-   (server-side sorting, filters in the address bar, saved column choices) and global search.
-2. **Loads and the dispatch board**, then documents and safety, then finance and reports.
+1. **Loads and the dispatch board**, with global search and the terminal selector in the top bar.
+2. **Documents and safety**, then finance and reports, then the remaining administration screens.
 3. **Maintenance**: work orders, inspections, out-of-service and return to service.
 4. **Finance, part two**: expenses, fuel, driver settlements.
 

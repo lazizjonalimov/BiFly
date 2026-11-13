@@ -5,13 +5,14 @@ import uuid
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.audit import audit
 from app.core.config import get_settings
 from app.core.db import new_session
 from app.core.deps import Principal, get_db, get_principal
-from app.core.errors import Conflict, Forbidden, Invalid, Unauthorized
+from app.core.errors import AppError, Conflict, Forbidden, Invalid, Unauthorized
 from app.core.permissions import Role
 from app.core.ratelimit import FailureLimiter
 from app.core.security import create_token, hash_password, verify_password
@@ -26,7 +27,27 @@ _limiter = FailureLimiter()
 def make_slug(name: str) -> str:
     """URL name for a company. The random tail keeps it unique without revealing which names are taken."""
     base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:50] or "company"
-    return f"{base}-{secrets.token_hex(2)}"
+    return f"{base}-{secrets.token_hex(3)}"
+
+
+def add_organization(db: Session, **fields) -> Organization:
+    """Insert a company under a web address nobody else has.
+
+    Whether an address is taken can't be looked up first: other companies' rows are invisible from here, by
+    design. So the insert is attempted inside a savepoint and, on the rare clash, tried again with a new
+    random tail. Many carriers share a name; none of them should ever be told theirs "already exists".
+    """
+    for _ in range(8):
+        org = Organization(slug=make_slug(fields["name"]), **fields)
+        try:
+            with db.begin_nested():
+                db.add(org)
+                db.flush()
+            return org
+        except IntegrityError as e:
+            if getattr(getattr(e.orig, "diag", None), "constraint_name", None) != "uq_organizations_slug":
+                raise
+    raise AppError("Could not set up the company. Try again.", status=503, code="TRY_AGAIN")
 
 
 def user_organizations(db: Session, user_id: uuid.UUID) -> list[s.OrgRef]:
@@ -51,7 +72,6 @@ def signup(body: s.SignupIn):
     if not settings.signup_enabled:
         raise Forbidden("Self-service sign-up is turned off")
     org_id, account_id = uuid.uuid4(), uuid.uuid4()
-    slug = make_slug(body.organization_name)
     db = new_session(org_id=org_id)  # the new company is the tenant context for its own creation
     try:
         if db.execute(text("SELECT 1 FROM auth_lookup_user(:e)"), {"e": body.email}).first():
@@ -63,9 +83,8 @@ def signup(body: s.SignupIn):
         db.add(Account(id=account_id, name=body.organization_name, owner_user_id=user_id,
                        max_companies=settings.max_companies_per_account))
         db.flush()
-        db.add(Organization(id=org_id, account_id=account_id, name=body.organization_name, slug=slug,
-                            dot_number=body.dot_number, mc_number=body.mc_number, timezone=body.timezone))
-        db.flush()
+        slug = add_organization(db, id=org_id, account_id=account_id, name=body.organization_name,
+                                dot_number=body.dot_number, mc_number=body.mc_number, timezone=body.timezone).slug
         db.add(Membership(organization_id=org_id, user_id=user_id, role=Role.OWNER.value))
         db.add(AuditLog(organization_id=org_id, actor_user_id=user_id, action="organization.created",
                         entity_type="organization", entity_id=org_id, data={"name": body.organization_name}))

@@ -40,6 +40,8 @@ type Props<T> = {
   getRowId: (row: T) => string;
   /** Where a row leads. The whole row is clickable; the first cell should also contain a real link. */
   rowHref?: (row: T) => string;
+  /** For rows that open a panel instead of a page. The first cell should contain a button that does the same. */
+  onRowClick?: (row: T) => void;
   empty: { icon?: LucideIcon; title: string; description?: string; action?: React.ReactNode };
   /** Remember which columns are shown, per user and company, under this name. */
   preferenceKey?: string;
@@ -61,7 +63,7 @@ function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
  * empty and error states. TanStack Table holds the table state; the address bar is where that state lives
  * (see useListState), and TanStack Query fetches whatever the address describes.
  */
-export function DataTable<T>({ columns, query, state, getRowId, rowHref, empty, preferenceKey, searchPlaceholder = "Search", filters, label }: Props<T>) {
+export function DataTable<T>({ columns, query, state, getRowId, rowHref, onRowClick, empty, preferenceKey, searchPlaceholder = "Search", filters, label }: Props<T>) {
   const router = useRouter();
   const [search, setSearch] = useDebouncedInput(state.q, state.setQuery);
   const [hidden, setHidden] = usePreference<string[]>(`table.${preferenceKey ?? "unnamed"}.hidden`, []);
@@ -182,12 +184,13 @@ export function DataTable<T>({ columns, query, state, getRowId, rowHref, empty, 
                   return (
                     <TableRow
                       key={row.id}
-                      className={cn(href && "cursor-pointer")}
+                      className={cn((href || onRowClick) && "cursor-pointer")}
                       onClick={(event) => {
                         // Links, buttons and menus inside the row keep their own behaviour.
-                        if (!href || (event.target as HTMLElement).closest("a,button,input,[role=menu],[role=menuitem]")) return;
+                        if ((!href && !onRowClick) || (event.target as HTMLElement).closest("a,button,input,[role=menu],[role=menuitem]")) return;
                         if (window.getSelection()?.toString()) return; // the user is selecting text, not clicking
-                        router.push(href);
+                        if (href) router.push(href);
+                        else onRowClick?.(row.original);
                       }}
                     >
                       {row.getVisibleCells().map((cell) => (

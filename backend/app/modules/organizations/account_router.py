@@ -20,7 +20,7 @@ from app.modules.customers.models import Customer, CustomerAddress, CustomerCont
 from app.modules.drivers.models import Driver, DriverQualification
 from app.modules.equipment.models import Trailer, Vehicle
 from app.modules.organizations import schemas as s
-from app.modules.organizations.auth_router import make_slug
+from app.modules.organizations.auth_router import add_organization
 from app.modules.organizations.models import Account, AuditLog, Membership, Organization, Terminal
 
 router = APIRouter(prefix="/account", tags=["account"])
@@ -104,17 +104,15 @@ def create_company(body: s.CompanyCreate, p: Principal = Depends(require_account
             src.close()
 
     new_id = uuid.uuid4()
-    slug = make_slug(body.name)
     dst = new_session(org_id=new_id, user_id=p.user_id)
     try:
         account = _lock_account(dst, p.account_id)
         _check_limit(dst, account)
-        dst.add(Organization(
-            id=new_id, account_id=account.id, name=body.name, legal_name=body.legal_name, slug=slug,
+        slug = add_organization(
+            dst, id=new_id, account_id=account.id, name=body.name, legal_name=body.legal_name,
             dot_number=body.dot_number, mc_number=body.mc_number, timezone=body.timezone or current.timezone,
             base_currency=current.base_currency, default_payment_terms_days=current.default_payment_terms_days,
-            load_number_prefix=current.load_number_prefix, invoice_number_prefix=current.invoice_number_prefix))
-        dst.flush()
+            load_number_prefix=current.load_number_prefix, invoice_number_prefix=current.invoice_number_prefix).slug
         dst.add(Membership(organization_id=new_id, user_id=p.user_id, role=Role.OWNER.value))
 
         copied: dict[str, int] = {}
