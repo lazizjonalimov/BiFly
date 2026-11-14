@@ -77,3 +77,27 @@ test("company settings, the role matrix and the audit log", async ({ page, brows
   await expect(other.getByText("Only an owner or administrator can change these.")).toBeVisible();
   await expect(other.getByLabel("Legal name")).toBeDisabled();
 });
+
+test("the bell shows what needs attention, and counts only what is new since it was opened", async ({ page }) => {
+  await signUp(page);
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  await viaApp(page, "POST", "/drivers", { first_name: "Ed", last_name: "Expired", cdl_expiry: day(-3), medical_cert_expiry: day(300) });
+  await page.reload();
+
+  const bell = page.getByRole("button", { name: /^Notifications/ });
+  await expect(bell).toHaveAccessibleName("Notifications, 1 new");
+  await bell.click();
+  const alerts = page.getByRole("list", { name: "Alerts" });
+  await expect(alerts.getByRole("link", { name: /Drivers who can't be dispatched/ })).toContainText("New");
+  await alerts.getByRole("link", { name: /Drivers who can't be dispatched/ }).click();
+  await expect(page).toHaveURL(/\/safety\?state=expired&entity_type=driver$/);
+  await expect(bell).toHaveAccessibleName("Notifications");                      // seen
+
+  // Something new comes up: only that is counted.
+  await viaApp(page, "POST", "/vehicles", { unit_number: "101", insurance_expiry: day(-1), registration_expiry: day(300), inspection_expiry: day(300) });
+  await page.reload();
+  await expect(bell).toHaveAccessibleName("Notifications, 1 new");
+  await bell.click();
+  await expect(alerts.getByRole("link", { name: /Equipment that can't be dispatched/ })).toContainText("New");
+  await expect(alerts.getByRole("link", { name: /Drivers who can't be dispatched/ })).not.toContainText("New");
+});

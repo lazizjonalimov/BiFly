@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { CompanySwitcher } from "@/components/layout/company-switcher";
 import { GlobalSearch, QuickCreate } from "@/components/layout/global-search";
+import { Notifications } from "@/components/layout/notifications";
 import { LogoMark } from "@/components/layout/logo";
 import { TerminalSelector } from "@/components/layout/terminal-selector";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -122,6 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <GlobalSearch />
           </div>
           <QuickCreate />
+          <Notifications />
           <UserMenu />
         </header>
         {org.status === "archived" ? (

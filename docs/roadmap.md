@@ -6,7 +6,7 @@ this repository. The web column is the screens; the API column is the rules behi
 | # | Step | API | Web |
 | --- | --- | --- | --- |
 | 1 | Audit and foundation | Done: [audit](implementation-audit.md), [decisions](decisions) | Done: mandated stack, generated API types, session layer, unit and browser tests |
-| 2 | Design system and application shell | n/a | Done: theme (light and dark), components, sidebar, breadcrumbs, user menu, company switcher, terminal selector, global search (Ctrl/⌘ K), quick create, shared table and form standards. Notifications not started |
+| 2 | Design system and application shell | n/a | Done: theme (light and dark), components, sidebar, breadcrumbs, user menu, company switcher, terminal selector, global search (Ctrl/⌘ K), quick create, notifications (live alerts for the role, new ones counted since last opened), shared table and form standards |
 | 3 | Sign-in and company switching | Done | Done: sign-up, sign-in, choose a company, switch, add with a copy, archive, restore |
 | 4 | Customers | Done | Done: list, form, detail with contacts and addresses, archive and restore |
 | 5 | Drivers and equipment | Done | Done: drivers with compliance, qualification file, documents and loads; trucks and trailers with their own pages, documents and loads; terminals |
@@ -36,8 +36,8 @@ this repository. The web column is the screens; the API column is the rules behi
 
 Every step of the build order is built. What comes next:
 
-1. **Notifications**: in-app alerts for expirations, late loads and approvals (the dashboard's exceptions
-   list already gathers them).
+1. **Notifications beyond the app**: email and push for the same alerts, once there is somewhere to send
+   them from (with deployment).
 2. **Driver mobile app and customer portal**, on the driver and customer endpoints the API already has.
 3. **Deployment** (see below).
 
