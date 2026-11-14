@@ -132,7 +132,7 @@ def upgrade() -> None:
     op.create_index('ix_work_order_lines_org_work_order', 'work_order_lines', ['organization_id', 'work_order_id'], unique=False)
     # ### end Alembic commands ###
 
-    app_role = os.environ.get("BIFLY_APP_ROLE", "bifly_app")
+    app_role = os.environ.get("FLYFLEET_APP_ROLE", "flyfleet_app")
     for table, privileges in (("work_orders", NO_DELETE), ("work_order_lines", READ_WRITE), ("inspections", APPEND_ONLY),
                               ("inspection_defects", APPEND_ONLY)):
         for statement in secure_tenant_table(table, app_role, privileges):

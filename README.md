@@ -1,4 +1,6 @@
-# BiFly
+# FlyFleet
+
+**[flyfleet.io](https://flyfleet.io)**
 
 A web-based transportation management system (TMS) for trucking companies, built as multi-tenant software
 from day one. One owner profile can run **up to ten companies**, each with its own books, and switch between
@@ -80,7 +82,7 @@ http://localhost:8000/api/docs.
 
 ### For development (hot reload)
 
-Start PostgreSQL (creates both database roles and the `bifly` and `bifly_test` databases):
+Start PostgreSQL (creates both database roles and the `flyfleet` and `flyfleet_test` databases):
 
 ```bash
 docker compose up -d
@@ -121,7 +123,7 @@ python scripts/seed_demo.py
 cd backend && pytest
 ```
 
-The backend suite runs against a real PostgreSQL (the `bifly_test` database) and connects as the restricted
+The backend suite runs against a real PostgreSQL (the `flyfleet_test` database) and connects as the restricted
 application role, so tenant isolation is tested exactly as it runs in production. It covers isolation at the
 API and SQL level, the load lifecycle, assignment under concurrency, documents, invoicing and payments,
 permissions for every role, and the API contract.
@@ -143,23 +145,23 @@ Backend (`backend/.env`, see `backend/.env.example`):
 
 | Variable | Purpose |
 | --- | --- |
-| `BIFLY_DATABASE_URL` | Runtime connection. Must be the restricted role (`bifly_app`), never an owner or superuser |
-| `BIFLY_MIGRATION_DATABASE_URL` | Schema owner (`bifly_owner`), used only by Alembic |
-| `BIFLY_JWT_SECRET` | Token signing key. Required when `BIFLY_ENV=production` |
-| `BIFLY_FIELD_ENCRYPTION_KEYS` | Keys that encrypt driver licence numbers. Required in production. Back them up: without them the values can't be recovered |
-| `BIFLY_ENV` | `development`, `test` or `production` |
-| `BIFLY_SIGNUP_ENABLED` | Set to `false` to turn off self-service sign-up |
-| `BIFLY_MAX_COMPANIES_PER_ACCOUNT` | Active companies a new account may hold. Default 10 |
-| `BIFLY_STORAGE_DIR` | Where uploaded documents are stored |
-| `BIFLY_MAX_UPLOAD_BYTES` | Largest accepted upload. Default 15 MB |
-| `BIFLY_CORS_ORIGINS` | Only needed for browser clients that call the API directly |
+| `FLYFLEET_DATABASE_URL` | Runtime connection. Must be the restricted role (`flyfleet_app`), never an owner or superuser |
+| `FLYFLEET_MIGRATION_DATABASE_URL` | Schema owner (`flyfleet_owner`), used only by Alembic |
+| `FLYFLEET_JWT_SECRET` | Token signing key. Required when `FLYFLEET_ENV=production` |
+| `FLYFLEET_FIELD_ENCRYPTION_KEYS` | Keys that encrypt driver licence numbers. Required in production. Back them up: without them the values can't be recovered |
+| `FLYFLEET_ENV` | `development`, `test` or `production` |
+| `FLYFLEET_SIGNUP_ENABLED` | Set to `false` to turn off self-service sign-up |
+| `FLYFLEET_MAX_COMPANIES_PER_ACCOUNT` | Active companies a new account may hold. Default 10 |
+| `FLYFLEET_STORAGE_DIR` | Where uploaded documents are stored |
+| `FLYFLEET_MAX_UPLOAD_BYTES` | Largest accepted upload. Default 15 MB |
+| `FLYFLEET_CORS_ORIGINS` | Only needed for browser clients that call the API directly |
 
 Web (`apps/web/.env.local`, see `apps/web/.env.example`):
 
 | Variable | Purpose |
 | --- | --- |
-| `BIFLY_API_URL` | Where the Next.js server reaches the API. Default `http://localhost:8000` |
-| `BIFLY_ALLOW_EMBEDDING` | `true` lets the app be shown inside another site's frame, for hosted preview panes. Off by default; never enable in production |
+| `FLYFLEET_API_URL` | Where the Next.js server reaches the API. Default `http://localhost:8000` |
+| `FLYFLEET_ALLOW_EMBEDDING` | `true` lets the app be shown inside another site's frame, for hosted preview panes. Off by default; never enable in production |
 
 ## Repository layout
 
@@ -180,7 +182,7 @@ docs/                Architecture, decisions, roadmap, the implementation audit
 - **Sign-in is local email and password** with signed tokens. Cognito, MFA, password reset by email and
   invitations by email are deferred to the deployment phase
   ([decision 0003](docs/decisions/0003-local-adapters-until-deployment.md)). An administrator sets a
-  temporary password for a new person; someone who already has a BiFly sign-in is simply given access.
+  temporary password for a new person; someone who already has a FlyFleet sign-in is simply given access.
 - **Login throttling is per API process.** Real rate limiting belongs at the edge.
 - **Documents are stored on a local volume** behind a storage interface, and are not scanned for malware.
 - **No background jobs.** Reminders and notifications need a worker; expirations are worked out when read.

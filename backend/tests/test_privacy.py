@@ -59,7 +59,7 @@ def test_the_encryption_key_can_be_rotated(monkeypatch):
     old, new = Fernet.generate_key().decode(), Fernet.generate_key().decode()
 
     def use(keys: str) -> None:
-        monkeypatch.setenv("BIFLY_FIELD_ENCRYPTION_KEYS", keys)
+        monkeypatch.setenv("FLYFLEET_FIELD_ENCRYPTION_KEYS", keys)
         get_settings.cache_clear()
         crypto._cipher.cache_clear()
 
@@ -74,9 +74,9 @@ def test_the_encryption_key_can_be_rotated(monkeypatch):
             crypto.decrypt(token)
             raise AssertionError("decrypted without the key")
         except RuntimeError as e:
-            assert "BIFLY_FIELD_ENCRYPTION_KEYS" in str(e)
+            assert "FLYFLEET_FIELD_ENCRYPTION_KEYS" in str(e)
     finally:
-        monkeypatch.delenv("BIFLY_FIELD_ENCRYPTION_KEYS", raising=False)
+        monkeypatch.delenv("FLYFLEET_FIELD_ENCRYPTION_KEYS", raising=False)
         get_settings.cache_clear()
         crypto._cipher.cache_clear()
 
@@ -86,15 +86,15 @@ def test_production_refuses_to_start_with_development_secrets(monkeypatch):
 
     from app.core.config import get_settings
     try:
-        monkeypatch.setenv("BIFLY_ENV", "production")
+        monkeypatch.setenv("FLYFLEET_ENV", "production")
         get_settings.cache_clear()
-        with pytest.raises(RuntimeError, match="BIFLY_JWT_SECRET"):
+        with pytest.raises(RuntimeError, match="FLYFLEET_JWT_SECRET"):
             get_settings()
-        monkeypatch.setenv("BIFLY_JWT_SECRET", "x" * 48)
+        monkeypatch.setenv("FLYFLEET_JWT_SECRET", "x" * 48)
         get_settings.cache_clear()
-        with pytest.raises(RuntimeError, match="BIFLY_FIELD_ENCRYPTION_KEYS"):
+        with pytest.raises(RuntimeError, match="FLYFLEET_FIELD_ENCRYPTION_KEYS"):
             get_settings()
     finally:
-        monkeypatch.setenv("BIFLY_ENV", "test")
-        monkeypatch.delenv("BIFLY_JWT_SECRET", raising=False)
+        monkeypatch.setenv("FLYFLEET_ENV", "test")
+        monkeypatch.delenv("FLYFLEET_JWT_SECRET", raising=False)
         get_settings.cache_clear()

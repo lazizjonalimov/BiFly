@@ -5,8 +5,8 @@ import { cache } from "react";
 import type { Me } from "@/lib/api/types";
 import { allowEmbedding } from "@/lib/auth/embedding";
 
-export const API_URL = (process.env.BIFLY_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
-export const SESSION_COOKIE = "bifly_session";
+export const API_URL = (process.env.FLYFLEET_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+export const SESSION_COOKIE = "flyfleet_session";
 
 type CookieJar = Awaited<ReturnType<typeof cookies>>;
 

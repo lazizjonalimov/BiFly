@@ -18,11 +18,11 @@ export async function exchange(request: Request, { path, authenticated = false }
   try {
     upstream = await apiFetch(path, { method: "POST", token, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   } catch {
-    return errorResponse(502, "UPSTREAM_UNAVAILABLE", "BiFly is not reachable right now. Try again in a moment.");
+    return errorResponse(502, "UPSTREAM_UNAVAILABLE", "FlyFleet is not reachable right now. Try again in a moment.");
   }
   const data = await upstream.json().catch(() => null);
   if (!upstream.ok || !data) {
-    return data ? Response.json(data, { status: upstream.status }) : errorResponse(502, "UPSTREAM_UNAVAILABLE", "BiFly is not reachable right now.");
+    return data ? Response.json(data, { status: upstream.status }) : errorResponse(502, "UPSTREAM_UNAVAILABLE", "FlyFleet is not reachable right now.");
   }
   if (data.access_token) setSession(await cookies(), request, data.access_token);
   // The token stays on the server. The browser learns which company it is now in, and nothing more.

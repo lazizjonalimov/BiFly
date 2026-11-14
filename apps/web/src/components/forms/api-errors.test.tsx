@@ -33,7 +33,7 @@ describe("applyApiErrors", () => {
   });
 
   it("explains failures that never reached the API", () => {
-    expect(applyApiErrors(makeForm(), new TypeError("Failed to fetch"))).toMatch(/Could not reach BiFly/);
+    expect(applyApiErrors(makeForm(), new TypeError("Failed to fetch"))).toMatch(/Could not reach FlyFleet/);
   });
 });
 

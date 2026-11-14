@@ -57,7 +57,7 @@ export function ComplianceAlert({ compliance, subject }: { compliance: Complianc
         <Alert>
           <CircleAlertIcon />
           <AlertTitle>Some dates are not on file</AlertTitle>
-          <AlertDescription>{missing.map((i) => i.message).join(". ")}. Without them BiFly can&apos;t warn you before they expire.</AlertDescription>
+          <AlertDescription>{missing.map((i) => i.message).join(". ")}. Without them FlyFleet can&apos;t warn you before they expire.</AlertDescription>
         </Alert>
       ) : null}
     </div>

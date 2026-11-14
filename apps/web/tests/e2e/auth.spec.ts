@@ -47,10 +47,10 @@ test("sign-up explains what is wrong with each field", async ({ page }) => {
 test("the browser never holds the API token", async ({ page }) => {
   await signUp(page);
   const cookies = await page.context().cookies();
-  const session = cookies.find((c) => c.name === "bifly_session");
+  const session = cookies.find((c) => c.name === "flyfleet_session");
   expect(session?.httpOnly).toBe(true);
   expect(session?.sameSite).toBe("Lax");
-  expect(await page.evaluate(() => document.cookie)).not.toContain("bifly_session");
+  expect(await page.evaluate(() => document.cookie)).not.toContain("flyfleet_session");
   expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain("eyJ");
 
   // The endpoints that answer with a token are not reachable through the pass-through.

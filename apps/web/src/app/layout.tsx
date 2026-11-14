@@ -6,7 +6,7 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "BiFly", template: "%s · BiFly" },
+  title: { default: "FlyFleet", template: "%s · FlyFleet" },
   description: "Transportation management for trucking companies",
 };
 
@@ -20,7 +20,7 @@ export const viewport: Viewport = {
 };
 
 // Applies the saved theme before the first paint, so a dark-mode user never sees a white flash.
-const themeScript = `(function(){try{var t=localStorage.getItem("bifly-theme");var d=t==="dark"||((!t||t==="system")&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
+const themeScript = `(function(){try{var t=localStorage.getItem("flyfleet-theme");var d=t==="dark"||((!t||t==="system")&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}})()`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

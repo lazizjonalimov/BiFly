@@ -289,7 +289,7 @@ def _deliver(db: Session, p: Principal, report: Report, fmt: str):
     db.commit()
     stamp = f"{report.date_from}_{report.date_to}" if report.date_from else str(p.today())
     return Response(content="﻿" + buffer.getvalue(), media_type="text/csv; charset=utf-8", headers={
-        "Content-Disposition": f'attachment; filename="bifly-{report.name}-{stamp}.csv"',
+        "Content-Disposition": f'attachment; filename="flyfleet-{report.name}-{stamp}.csv"',
         "Cache-Control": "private, no-store"})
 
 

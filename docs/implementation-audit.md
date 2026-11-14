@@ -1,6 +1,6 @@
 # Implementation audit (Sprint 0)
 
-Audit of the repository at commit `3388a68` against the BiFly web blueprint (sections 1–20.19) and the
+Audit of the repository at commit `3388a68` against the FlyFleet web blueprint (sections 1–20.19) and the
 architecture plan. It answers: what exists, what is partial, what is missing, what is wrong, and in what order
 to build the rest.
 
@@ -80,7 +80,7 @@ None that weaken tenant isolation. Open items, all already documented:
 
 This follows the blueprint's sprint sequence (20.15) and build order (17):
 
-1. Backend contract alignment and BiFly naming.
+1. Backend contract alignment and FlyFleet naming.
 2. Multi-company profile (accounts, limit, switch, copy).
 3. Load lifecycle per blueprint, eligibility, concurrency.
 4. Web foundation on the mandated stack, with the workspace shell.

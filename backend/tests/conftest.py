@@ -1,8 +1,8 @@
 """Tests run against a real PostgreSQL database, connecting as the restricted runtime role, so row-level
 security is exercised exactly as in production.
 
-Defaults match docker-compose and local development; override with BIFLY_TEST_DATABASE_URL and
-BIFLY_TEST_OWNER_URL.
+Defaults match docker-compose and local development; override with FLYFLEET_TEST_DATABASE_URL and
+FLYFLEET_TEST_OWNER_URL.
 """
 import os
 import tempfile
@@ -10,17 +10,17 @@ import uuid
 
 import pytest
 
-APP_URL = os.environ.get("BIFLY_TEST_DATABASE_URL",
-                         "postgresql+psycopg://bifly_app:bifly_app_dev@localhost:5432/bifly_test")
-OWNER_URL = os.environ.get("BIFLY_TEST_OWNER_URL",
-                           "postgresql+psycopg://bifly_owner:bifly_owner_dev@localhost:5432/bifly_test")
+APP_URL = os.environ.get("FLYFLEET_TEST_DATABASE_URL",
+                         "postgresql+psycopg://flyfleet_app:flyfleet_app_dev@localhost:5432/flyfleet_test")
+OWNER_URL = os.environ.get("FLYFLEET_TEST_OWNER_URL",
+                           "postgresql+psycopg://flyfleet_owner:flyfleet_owner_dev@localhost:5432/flyfleet_test")
 
 os.environ.update({
-    "BIFLY_ENV": "test",
-    "BIFLY_DATABASE_URL": APP_URL,
-    "BIFLY_MIGRATION_DATABASE_URL": OWNER_URL,
+    "FLYFLEET_ENV": "test",
+    "FLYFLEET_DATABASE_URL": APP_URL,
+    "FLYFLEET_MIGRATION_DATABASE_URL": OWNER_URL,
     "ALEMBIC_URL": OWNER_URL,
-    "BIFLY_STORAGE_DIR": tempfile.mkdtemp(prefix="bifly-test-storage-"),
+    "FLYFLEET_STORAGE_DIR": tempfile.mkdtemp(prefix="flyfleet-test-storage-"),
 })
 
 from alembic.config import Config  # noqa: E402

@@ -33,7 +33,7 @@ const schema = z.object({
   full_name: requiredText("their name", 120),
   email: z.email("Enter a valid email address"),
   role: z.string().min(1, "Choose a role"),
-  // Needed only for someone who has never signed in to BiFly; the API says so if it is missing.
+  // Needed only for someone who has never signed in to FlyFleet; the API says so if it is missing.
   password: z.union([z.literal(""), z.string().min(10, "Use at least 10 characters").max(200)]),
 });
 type Values = z.infer<typeof schema>;
@@ -90,7 +90,7 @@ function AddMemberSheet({ open, onOpenChange, roles }: { open: boolean; onOpenCh
           type="password"
           autoComplete="new-password"
           className="sm:col-span-2"
-          hint="For someone new to BiFly: give it to them, and they can change it after signing in. Leave empty for someone who already has a BiFly sign-in; they keep their own password."
+          hint="For someone new to FlyFleet: give it to them, and they can change it after signing in. Leave empty for someone who already has a FlyFleet sign-in; they keep their own password."
         />
       </FieldGrid>
     </EntitySheet>

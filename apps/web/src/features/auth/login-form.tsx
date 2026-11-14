@@ -85,7 +85,7 @@ export function LoginForm() {
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Welcome back to BiFly.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Welcome back to FlyFleet.</p>
       {search.get("reason") === "expired" ? (
         <Alert variant="info" className="mt-6">
           <InfoIcon />
@@ -103,7 +103,7 @@ export function LoginForm() {
         </form>
       </Form>
       <p className="mt-6 text-sm text-muted-foreground">
-        New to BiFly?{" "}
+        New to FlyFleet?{" "}
         <Link href="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
           Create an account
         </Link>

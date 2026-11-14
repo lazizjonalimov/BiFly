@@ -24,7 +24,7 @@ function applyTheme(theme: Theme) {
 
 export function UserMenu() {
   const { user, organization } = useSession();
-  const [theme, setTheme] = useLocalPreference("bifly-theme", "system");
+  const [theme, setTheme] = useLocalPreference("flyfleet-theme", "system");
   const [passwordOpen, setPasswordOpen] = useState(false);
 
   function chooseTheme(next: Theme) {

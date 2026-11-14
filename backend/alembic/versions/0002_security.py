@@ -5,7 +5,7 @@ Revises: 0001
 
 Security model
 --------------
-* The API connects as a restricted role (default ``bifly_app``) that owns nothing and cannot bypass RLS.
+* The API connects as a restricted role (default ``flyfleet_app``) that owns nothing and cannot bypass RLS.
   Migrations run as the schema owner.
 * Every request sets two transaction-local settings: ``app.org_id`` (the company) and ``app.user_id``.
 * Row-level security is FORCEd on every table. A tenant table exposes only rows whose ``organization_id``
@@ -26,7 +26,7 @@ down_revision = "0001"
 branch_labels = None
 depends_on = None
 
-APP_ROLE = os.environ.get("BIFLY_APP_ROLE", "bifly_app")
+APP_ROLE = os.environ.get("FLYFLEET_APP_ROLE", "flyfleet_app")
 
 TENANT_TABLES = {
     "organization_memberships": NO_DELETE,      # deactivated, never deleted

@@ -43,6 +43,6 @@ export function toApiError(status: number, payload: unknown): ApiError {
 /** A sentence for a toast or banner, whatever was thrown. */
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
-  if (error instanceof TypeError) return "Could not reach BiFly. Check your connection and try again.";
+  if (error instanceof TypeError) return "Could not reach FlyFleet. Check your connection and try again.";
   return "Something went wrong. Try again.";
 }

@@ -13556,8 +13556,8 @@
     }
   },
   "info": {
-    "description": "\nThe BiFly transportation management API.\n\n* Every request acts inside one company, taken from the access token. A record that belongs to another\n  company answers 404, exactly as if it did not exist.\n* Errors share one shape: `{\"error\": {\"code\", \"message\", \"field_errors\", \"details\", \"request_id\"}}`.\n* Lists share one shape: `{\"items\", \"page\": {\"next_cursor\", \"has_more\", \"total_count\"}, \"meta\"}` and are\n  sorted, filtered and paged in the database.\n* Money is sent as decimal strings. Instants are UTC; calendar dates are in the company's time zone.\n",
-    "title": "BiFly API",
+    "description": "\nThe FlyFleet transportation management API.\n\n* Every request acts inside one company, taken from the access token. A record that belongs to another\n  company answers 404, exactly as if it did not exist.\n* Errors share one shape: `{\"error\": {\"code\", \"message\", \"field_errors\", \"details\", \"request_id\"}}`.\n* Lists share one shape: `{\"items\", \"page\": {\"next_cursor\", \"has_more\", \"total_count\"}, \"meta\"}` and are\n  sorted, filtered and paged in the database.\n* Money is sent as decimal strings. Instants are UTC; calendar dates are in the company's time zone.\n",
+    "title": "FlyFleet API",
     "version": "0.2.0"
   },
   "openapi": "3.1.0",

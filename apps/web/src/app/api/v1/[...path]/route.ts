@@ -36,7 +36,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
   try {
     upstream = await fetch(target, { method: request.method, headers, body: write ? await request.arrayBuffer() : undefined, cache: "no-store", redirect: "manual" });
   } catch {
-    return errorResponse(502, "UPSTREAM_UNAVAILABLE", "BiFly is not reachable right now. Try again in a moment.");
+    return errorResponse(502, "UPSTREAM_UNAVAILABLE", "FlyFleet is not reachable right now. Try again in a moment.");
   }
 
   const out = new Headers({ "Cache-Control": "private, no-store" });

@@ -17,7 +17,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.context import current_request_id
 
-log = logging.getLogger("bifly")
+log = logging.getLogger("flyfleet")
 
 
 class AppError(Exception):

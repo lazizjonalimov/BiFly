@@ -19,7 +19,7 @@ import { useCan, useOrg, useSession } from "@/lib/auth/session";
 import { NAVIGATION, type NavItem } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
-const COLLAPSED_KEY = "bifly-sidebar-collapsed";
+const COLLAPSED_KEY = "flyfleet-sidebar-collapsed";
 
 function useVisibleNavigation() {
   const can = useCan();
@@ -66,7 +66,7 @@ function Sidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <Link href={`/${slug}/dashboard`} onClick={onNavigate} className={cn("flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4", collapsed && "justify-center px-0")}>
         <LogoMark className="size-7" />
-        <span className={cn("text-base font-semibold tracking-tight text-white", collapsed && "sr-only")}>BiFly</span>
+        <span className={cn("text-base font-semibold tracking-tight text-white", collapsed && "sr-only")}>FlyFleet</span>
       </Link>
       <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 py-4">
         {groups.map((group) => (

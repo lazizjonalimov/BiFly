@@ -2,7 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
-const EVENT = "bifly:preference";
+const EVENT = "flyfleet:preference";
 
 function subscribe(onChange: () => void) {
   window.addEventListener("storage", onChange);

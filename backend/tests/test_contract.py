@@ -107,7 +107,7 @@ def test_idempotency_key_replays_instead_of_repeating(org):
 
 def test_openapi_document_describes_the_error_shape(client):
     spec = client.get("/api/openapi.json").json()
-    assert spec["info"]["title"] == "BiFly API"
+    assert spec["info"]["title"] == "FlyFleet API"
     responses = spec["paths"]["/api/v1/loads"]["post"]["responses"]
     assert responses["422"]["content"]["application/json"]["schema"]["$ref"].endswith("/ErrorResponse")
     assert "ErrorResponse" in spec["components"]["schemas"]

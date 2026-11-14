@@ -11,7 +11,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from app.core.context import request_id_var
 from app.core.errors import envelope
 
-log = logging.getLogger("bifly.access")
+log = logging.getLogger("flyfleet.access")
 
 
 class _TooLarge(Exception):

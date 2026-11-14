@@ -132,7 +132,7 @@ function SettingsForm({ organization }: { organization: Organization }) {
                   </div>
                 </FieldGrid>
               </FormSection>
-              <FormSection title="How BiFly works for you">
+              <FormSection title="How FlyFleet works for you">
                 <FieldGrid>
                   <SelectField control={form.control} name="timezone" label="Time zone" options={timeZones(organization.timezone)} hint="Appointments, due dates and 'today' follow it" />
                   <TextField control={form.control} name="default_payment_terms_days" label="Default payment terms (days)" inputMode="numeric" hint="For new customers" />

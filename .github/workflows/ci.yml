@@ -18,8 +18,8 @@ env:
   POSTGRES_USER: postgres
   PGHOST: localhost
   PGPASSWORD: postgres
-  BIFLY_OWNER_PASSWORD: bifly_owner_dev
-  BIFLY_APP_PASSWORD: bifly_app_dev
+  FLYFLEET_OWNER_PASSWORD: flyfleet_owner_dev
+  FLYFLEET_APP_PASSWORD: flyfleet_app_dev
 
 jobs:
   backend:

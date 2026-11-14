@@ -69,7 +69,7 @@ def test_every_table_is_under_forced_row_level_security(owner_sql):
             "WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname <> 'alembic_version' "
             "AND NOT (c.relrowsecurity AND c.relforcerowsecurity)")).scalars().all()
         owned_by_app = c.execute(text(
-            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tableowner = 'bifly_app'")).scalars().all()
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tableowner = 'flyfleet_app'")).scalars().all()
     assert unprotected == [] and owned_by_app == []
 
 

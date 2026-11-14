@@ -111,7 +111,7 @@ def assert_restricted_role(engine: Engine) -> None:
     if problems:
         raise RuntimeError(
             f"Refusing to start: database role '{row.name}' {' and '.join(problems)}, so row-level security would "
-            "not isolate tenants. Set BIFLY_DATABASE_URL to the restricted application role.")
+            "not isolate tenants. Set FLYFLEET_DATABASE_URL to the restricted application role.")
 
 
 def new_session(*, org_id: uuid.UUID | None = None, user_id: uuid.UUID | None = None) -> Session:

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 // Headers that apply to every response. The content security policy and frame protection are set per request
-// in src/proxy.ts, because whether the app may be framed is a run-time setting (BIFLY_ALLOW_EMBEDDING).
+// in src/proxy.ts, because whether the app may be framed is a run-time setting (FLYFLEET_ALLOW_EMBEDDING).
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "same-origin" },

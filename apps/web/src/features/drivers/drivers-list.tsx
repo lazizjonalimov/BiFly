@@ -113,7 +113,7 @@ export function DriversList() {
             {terminals.options.length ? <FilterSelect label="Terminal" value={state.filters.terminal_id ?? ""} onChange={(value) => state.setFilter("terminal_id", value)} options={[{ value: "", label: "Any terminal" }, ...terminals.options]} /> : null}
           </>
         }
-        empty={{ icon: IdCardIcon, title: "No drivers yet", description: "Add your drivers with their licence and medical card dates. BiFly then keeps expired drivers off loads.", action: newButton ?? undefined }}
+        empty={{ icon: IdCardIcon, title: "No drivers yet", description: "Add your drivers with their licence and medical card dates. FlyFleet then keeps expired drivers off loads.", action: newButton ?? undefined }}
       />
       <DriverSheet
         open={creating || (wantsNew && canManage)}

@@ -1,6 +1,6 @@
 # Architecture
 
-How BiFly is put together and, more importantly, the rules that keep it safe to extend. Read the
+How FlyFleet is put together and, more importantly, the rules that keep it safe to extend. Read the
 [README](../README.md) first for the overview. Decisions with their reasons are in [decisions](decisions).
 
 ## Shape
@@ -40,8 +40,8 @@ two companies under one owner are kept apart exactly like two unrelated carriers
 
 - Every tenant table has an `organization_id` column and a policy
   `organization_id = current_setting('app.org_id')`, for reads and writes.
-- The API connects as `bifly_app`, a role that owns nothing, is not a superuser and cannot bypass RLS.
-  Migrations run separately as `bifly_owner`.
+- The API connects as `flyfleet_app`, a role that owns nothing, is not a superuser and cannot bypass RLS.
+  Migrations run separately as `flyfleet_owner`.
 - For every transaction the session sets `app.org_id` and `app.user_id` with
   `set_config(..., is_local => true)` (see `app/core/db.py`). The values die with the transaction, so a
   pooled connection cannot carry one company's context into another request.
@@ -87,7 +87,7 @@ they never appear readable in the database, its backups or a replica.
 - Roles with `drivers.sensitive.read` see the number and pay settings. Everyone else gets the last four
   characters. The same rule covers scans of licences and medical cards in the document store.
 - The audit log records that the field changed, never its value.
-- Keys come from `BIFLY_FIELD_ENCRYPTION_KEYS`. To rotate, put the new key first and keep the old one.
+- Keys come from `FLYFLEET_FIELD_ENCRYPTION_KEYS`. To rotate, put the new key first and keep the old one.
 
 ## Sign-in and sessions
 
@@ -252,6 +252,6 @@ See [decision 0004](decisions/0004-api-contract.md).
 
 - Run migrations as the owner role, as a separate step from starting the API (the `migrate` service in
   `docker-compose.yml`). The API never receives owner credentials.
-- Never point `BIFLY_DATABASE_URL` at an owner or superuser. The API will refuse to start, by design.
+- Never point `FLYFLEET_DATABASE_URL` at an owner or superuser. The API will refuse to start, by design.
 - There is no platform operator who can see every company. When support access is added it should be an
   explicit, audited, time-limited grant.

@@ -28,7 +28,7 @@ from app.modules.safety.router import router as safety_router
 from app.modules.settlements.router import router as settlements_router
 
 DESCRIPTION = """
-The BiFly transportation management API.
+The FlyFleet transportation management API.
 
 * Every request acts inside one company, taken from the access token. A record that belongs to another
   company answers 404, exactly as if it did not exist.
@@ -50,7 +50,7 @@ async def lifespan(_: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    app = FastAPI(title="BiFly API", version="0.2.0", description=DESCRIPTION, docs_url="/api/docs",
+    app = FastAPI(title="FlyFleet API", version="0.2.0", description=DESCRIPTION, docs_url="/api/docs",
                   redoc_url=None, openapi_url="/api/openapi.json", lifespan=lifespan)
 
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"],

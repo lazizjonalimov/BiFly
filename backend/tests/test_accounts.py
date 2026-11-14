@@ -140,7 +140,7 @@ def test_adding_a_member_needs_a_password_only_for_a_new_sign_in(org, make_org):
     body = org.error("POST", "/members", 422, "VALIDATION_ERROR",
                      json={"email": f"new-{uuid.uuid4().hex[:6]}@example.com", "full_name": "New", "role": "viewer"})
     assert list(body["field_errors"]) == ["password"]
-    # Someone who already has a BiFly sign-in is simply given access; their password is untouched.
+    # Someone who already has a FlyFleet sign-in is simply given access; their password is untouched.
     other = make_org("Elsewhere")
     added = org.post("/members", {"email": other.email, "full_name": "ignored", "role": "accountant"}, 201).json()
     assert added["full_name"] == "Olive Owner"

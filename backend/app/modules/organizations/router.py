@@ -78,7 +78,7 @@ def add_member(body: s.MemberCreate, p: Principal = Depends(require("users.manag
     _check_grant(p, body.role)
     existing = db.execute(text("SELECT id, full_name FROM auth_lookup_user(:e)"), {"e": body.email}).first()
     if existing:
-        # A person with a BiFly sign-in already. They keep their own password; only access is added.
+        # A person with a FlyFleet sign-in already. They keep their own password; only access is added.
         if db.scalar(select(Membership.id).where(Membership.user_id == existing.id,
                                                  Membership.organization_id == p.org_id)):
             raise Conflict("This person is already on the team", code="DUPLICATE_REFERENCE",

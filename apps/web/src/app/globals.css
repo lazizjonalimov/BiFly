@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * BiFly design tokens. Components never use raw colours: they use these names, so the light and dark themes
+ * FlyFleet design tokens. Components never use raw colours: they use these names, so the light and dark themes
  * and any future rebrand are a change to this file only.
  */
 @theme inline {

@@ -23,7 +23,7 @@ test("revenue for a chosen period, grouped two ways, and downloaded as CSV", asy
   await expect(page).toHaveURL(/period=custom/);
 
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("link", { name: "Download CSV" }).click()]);
-  expect(download.suggestedFilename()).toMatch(/^bifly-revenue-.*\.csv$/);
+  expect(download.suggestedFilename()).toMatch(/^flyfleet-revenue-.*\.csv$/);
   const csv = await readFile((await download.path())!, "utf8");
   expect(csv.replace(/^﻿/, "").split(/\r?\n/)[0]).toBe("Month,Loads,Miles,Revenue,Revenue per mile");
   expect(csv).toContain("4300.00");

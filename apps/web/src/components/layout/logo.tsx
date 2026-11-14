@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-/** The BiFly mark: two wings. Drawn inline so it follows the current text colour. */
+/** The FlyFleet mark: two wings. Drawn inline so it follows the current text colour. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" aria-hidden className={cn("size-8", className)}>
@@ -14,7 +14,7 @@ export function Logo({ className }: { className?: string }) {
   return (
     <span className={cn("flex items-center gap-2 font-semibold tracking-tight", className)}>
       <LogoMark />
-      <span className="text-lg">BiFly</span>
+      <span className="text-lg">FlyFleet</span>
     </span>
   );
 }

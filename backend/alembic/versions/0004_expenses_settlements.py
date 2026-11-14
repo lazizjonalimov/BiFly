@@ -195,7 +195,7 @@ def upgrade() -> None:
     op.create_index('ix_settlement_lines_org_settlement', 'settlement_lines', ['organization_id', 'settlement_id'], unique=False)
     # ### end Alembic commands ###
 
-    app_role = os.environ.get("BIFLY_APP_ROLE", "bifly_app")
+    app_role = os.environ.get("FLYFLEET_APP_ROLE", "flyfleet_app")
     for table in ("driver_settlements", "settlement_lines", "expenses"):
         for statement in secure_tenant_table(table, app_role, READ_WRITE):
             op.execute(statement)

@@ -191,7 +191,7 @@ def test_csv_export_needs_permission_is_audited_and_is_safe_to_open(org):
 
     r = org.get("/reports/revenue", params={"format": "csv"})
     assert r.headers["content-type"].startswith("text/csv") and "attachment" in r.headers["content-disposition"]
-    assert f"bifly-revenue-by-customer-{day(0)[:8]}" in r.headers["content-disposition"]
+    assert f"flyfleet-revenue-by-customer-{day(0)[:8]}" in r.headers["content-disposition"]
     rows = list(csv.reader(io.StringIO(r.text.lstrip("﻿"))))
     assert rows[0] == ["Customer", "Loads", "Miles", "Revenue", "Revenue per mile"]
     assert rows[1][0].startswith("'=HYPERLINK") and rows[1][3] == "2500.00"       # a formula is defused, numbers are not

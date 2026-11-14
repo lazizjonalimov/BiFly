@@ -116,7 +116,7 @@ export function UnitsList({ kind }: { kind: UnitKind }) {
         empty={{
           icon: kind === "truck" ? TruckIcon : ContainerIcon,
           title: `No ${noun}s yet`,
-          description: `Add your ${noun}s with their insurance, registration and inspection dates. BiFly then keeps expired units off loads.`,
+          description: `Add your ${noun}s with their insurance, registration and inspection dates. FlyFleet then keeps expired units off loads.`,
           action: newButton ?? undefined,
         }}
       />

@@ -1,4 +1,4 @@
-# BiFly web application
+# FlyFleet web application
 
 Next.js (App Router), React, TypeScript in strict mode, Tailwind CSS, shadcn/ui components on Radix,
 TanStack Query and Table, React Hook Form with Zod. Setup and run instructions are in the
@@ -10,7 +10,7 @@ The browser never calls the API directly and never holds the API token.
 
 - `src/app/api/auth/*` signs in, signs up, switches company, changes the password and signs out. The API's
   token goes into an `httpOnly` cookie; the browser is told only which company it is now in.
-- `src/app/api/v1/[...path]` forwards every other call to `BIFLY_API_URL/api/v1/...`, attaching that token.
+- `src/app/api/v1/[...path]` forwards every other call to `FLYFLEET_API_URL/api/v1/...`, attaching that token.
   The API endpoints that answer with a token are deliberately not reachable through it.
 - `src/proxy.ts` sends signed-out visitors to sign-in (a convenience only; the API authorizes every request)
   and sets the content security policy and frame protection on every page.
