@@ -15,33 +15,8 @@ import { api, unwrap } from "@/lib/api/client";
 import { useOrg, useWorkspacePath } from "@/lib/auth/session";
 import { formatDate, todayIn } from "@/lib/format/dates";
 import { formatMoney } from "@/lib/format/money";
+import { FUEL_PERIODS, periodRange } from "@/lib/format/periods";
 import { formatNumber } from "@/lib/format/text";
-
-const PERIODS = [
-  { value: "this_month", label: "This month" },
-  { value: "last_month", label: "Last month" },
-  { value: "this_quarter", label: "This quarter" },
-  { value: "last_quarter", label: "Last quarter" },
-];
-
-const iso = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-const lastDay = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
-
-/** The calendar range a period means on the company's calendar. Quarters are the fuel-tax quarters. */
-export function periodRange(period: string, today: string): { from: string; to: string } {
-  const [y, m] = today.split("-").map(Number) as [number, number];
-  if (period === "last_month") {
-    const [py, pm] = m === 1 ? [y - 1, 12] : [y, m - 1];
-    return { from: iso(py, pm, 1), to: iso(py, pm, lastDay(py, pm)) };
-  }
-  const quarterStart = Math.floor((m - 1) / 3) * 3 + 1;
-  if (period === "this_quarter") return { from: iso(y, quarterStart, 1), to: today };
-  if (period === "last_quarter") {
-    const [qy, qm] = quarterStart === 1 ? [y - 1, 10] : [y, quarterStart - 3];
-    return { from: iso(qy, qm, 1), to: iso(qy, qm + 2, lastDay(qy, qm + 2)) };
-  }
-  return { from: iso(y, m, 1), to: today };
-}
 
 function gallons(value: string | null | undefined): string {
   return value ? `${formatNumber(Number(value))} gal` : "—";
@@ -68,7 +43,7 @@ export function FuelPage() {
       <PageHeader title="Finance" description="Fuel by state for the fuel-tax return, and by truck with miles per gallon." />
       <FinanceTabs current="fuel" />
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <FilterSelect label="Period" value={period} onChange={(v) => router.replace(v === "this_month" ? pathname : `${pathname}?period=${v}`, { scroll: false })} options={PERIODS} />
+        <FilterSelect label="Period" value={period} onChange={(v) => router.replace(v === "this_month" ? pathname : `${pathname}?period=${v}`, { scroll: false })} options={FUEL_PERIODS} />
         <span className="text-sm text-muted-foreground">
           {formatDate(range.from)} to {formatDate(range.to)}
         </span>

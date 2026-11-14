@@ -169,6 +169,9 @@ def test_company_settings_terminals_preferences_and_saved_views(org):
                                            "load_number_prefix": "AC", "default_payment_terms_days": 45}, 200).json()
     assert settings["timezone"] == "America/Denver" and settings["load_number_prefix"] == "AC"
     org.error("PATCH", "/organization", 422, "VALIDATION_ERROR", json={"timezone": "Nowhere/None"})
+    for required in ("name", "timezone", "default_payment_terms_days", "load_number_prefix"):
+        assert org.patch("/organization", {required: None}, 422).json()["error"]["field_errors"] == \
+            {required: "This field can't be empty"}
     s = seed(org)
     assert new_load(org, s["customer"]["id"])["load_number"] == "AC-1001"
 

@@ -16,7 +16,7 @@ this repository. The web column is the screens; the API column is the rules behi
 | 9 | Safety and compliance | Done: status, expirations queue, blocking, inspections with defects | Done: safety page with summary, expirations queue and documents to review; inspections (list, record, detail) |
 | 10 | Fleet and maintenance | Done: work orders with costs and lifecycle, out-of-service and return to service, summary, dashboard alerts, search, attachments | Done: maintenance page with summary, work orders and inspections, work order page with costs and documents, unit Maintenance tab, return to service |
 | 11 | Finance | Done: invoices, payments, aging, expenses with fuel (by state and truck, miles per gallon), driver settlements (draft from loads and expenses, approve, pay, void) | Done: invoices (list with receivables, create from completed loads, draft editing with loads and adjustments, issue, void, print), payments (record with allocations, apply later, reverse), expenses with receipts, fuel report, driver pay (draft, hand-entered lines, approve, mark paid, void, print), customer invoices tab, driver pay tab, "invoice this load" |
-| 12 | Reports and administration | Done: dashboard, exceptions, search, four reports, CSV, audit log, role matrix | Done: dashboard, companies, team, terminals. Not started: company settings, role matrix, audit log, reports, search |
+| 12 | Reports and administration | Done: dashboard, exceptions, search, four reports, CSV, audit log, role matrix, company settings | Done: dashboard, global search, reports (revenue, drivers, trucks, receivables aging) with periods and CSV download, company settings, team, roles, terminals, companies, audit log |
 
 ## What "Done" covers in the API
 
@@ -34,8 +34,12 @@ this repository. The web column is the screens; the API column is the rules behi
 
 ## Next
 
-1. **Reports and administration**: reports with export, company settings, role matrix, audit log.
-2. **Notifications**: in-app alerts for expirations, late loads and approvals.
+Every step of the build order is built. What comes next:
+
+1. **Notifications**: in-app alerts for expirations, late loads and approvals (the dashboard's exceptions
+   list already gathers them).
+2. **Driver mobile app and customer portal**, on the driver and customer endpoints the API already has.
+3. **Deployment** (see below).
 
 ## Deferred by decision
 

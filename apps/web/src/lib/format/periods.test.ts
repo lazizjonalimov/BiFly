@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { periodRange } from "@/features/expenses/fuel-page";
+import { periodRange } from "@/lib/format/periods";
 
-describe("fuel periods", () => {
-  it("runs this month and this quarter up to today", () => {
+describe("reporting periods", () => {
+  it("runs this month, this quarter and the year to date up to today", () => {
     expect(periodRange("this_month", "2026-11-13")).toEqual({ from: "2026-11-01", to: "2026-11-13" });
+    expect(periodRange("year_to_date", "2026-11-13")).toEqual({ from: "2026-01-01", to: "2026-11-13" });
     expect(periodRange("this_quarter", "2026-11-13")).toEqual({ from: "2026-10-01", to: "2026-11-13" });
   });
 

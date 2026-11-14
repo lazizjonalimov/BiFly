@@ -41,6 +41,9 @@ def update_organization(body: s.OrganizationPatch, p: Principal = Depends(requir
                         db: Session = Depends(get_db)):
     org = db.get(Organization, p.org_id)
     changes = body.model_dump(exclude_unset=True)
+    for required in ("name", "timezone", "default_payment_terms_days", "load_number_prefix", "invoice_number_prefix"):
+        if required in changes and changes[required] is None:
+            raise Invalid("This field can't be empty", field=required)
     for k, v in changes.items():
         setattr(org, k, v)
     audit(db, p, "organization.updated", "organization", org.id, body.model_dump(mode="json", exclude_unset=True))

@@ -1,4 +1,4 @@
-import { BanknoteIcon, Building2Icon, ContainerIcon, FileTextIcon, FuelIcon, HandCoinsIcon, IdCardIcon, LayoutDashboardIcon, PackageIcon, RadioTowerIcon, ReceiptIcon, ReceiptTextIcon, ShieldCheckIcon, TruckIcon, UserCogIcon, UsersIcon, WarehouseIcon, WrenchIcon, type LucideIcon } from "lucide-react";
+import { BanknoteIcon, BarChart3Icon, Building2Icon, BuildingIcon, ContainerIcon, FileTextIcon, FuelIcon, HandCoinsIcon, IdCardIcon, KeyRoundIcon, LayoutDashboardIcon, PackageIcon, RadioTowerIcon, ReceiptIcon, ReceiptTextIcon, ScrollTextIcon, ShieldCheckIcon, TruckIcon, UserCogIcon, UsersIcon, WarehouseIcon, WrenchIcon, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -20,7 +20,10 @@ export type NavGroup = { label: string; items: NavItem[] };
 export const NAVIGATION: NavGroup[] = [
   {
     label: "Overview",
-    items: [{ label: "Dashboard", path: "dashboard", icon: LayoutDashboardIcon, anyOf: ["dashboard.read"] }],
+    items: [
+      { label: "Dashboard", path: "dashboard", icon: LayoutDashboardIcon, anyOf: ["dashboard.read"] },
+      { label: "Reports", path: "reports", icon: BarChart3Icon, anyOf: ["reports.read"] },
+    ],
   },
   {
     label: "Operations",
@@ -59,7 +62,10 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: "Administration",
     items: [
+      { label: "Company settings", path: "settings/company", icon: BuildingIcon, anyOf: ["organization.manage"] },
       { label: "Team", path: "settings/team", icon: UserCogIcon, anyOf: ["users.manage"] },
+      { label: "Roles", path: "settings/roles", icon: KeyRoundIcon, anyOf: ["users.manage"] },
+      { label: "Audit log", path: "settings/audit-log", icon: ScrollTextIcon, anyOf: ["audit.read"] },
       { label: "Terminals", path: "settings/terminals", icon: WarehouseIcon, anyOf: ["organization.manage"] },
       { label: "Companies", path: "settings/companies", icon: Building2Icon, accountOwner: true },
     ],
@@ -91,6 +97,10 @@ export const SEGMENT_LABELS: Record<string, string> = {
   expenses: "Expenses",
   fuel: "Fuel",
   settlements: "Driver pay",
+  reports: "Reports",
+  company: "Company settings",
+  roles: "Roles",
+  "audit-log": "Audit log",
 };
 
 /**

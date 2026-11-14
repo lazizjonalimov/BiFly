@@ -4,10 +4,10 @@ A web-based transportation management system (TMS) for trucking companies, built
 from day one. One owner profile can run **up to ten companies**, each with its own books, and switch between
 them in one click.
 
-> **Status.** The API covers everything in the table below and is fully tested. The web application has
-> screens for sign-in and companies, the dashboard, the directory, loads, dispatch, documents, safety,
-> maintenance, invoices, payments, expenses, fuel and driver pay; reports and administration screens follow. A screen appears in the app when it is
-> built, never as a placeholder. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
+> **Status.** All twelve steps of the build order are built: the API covers everything in the table below
+> and the web application has a screen for every part of it, from sign-in and companies to dispatch,
+> maintenance, invoicing, driver pay, reports and the audit log. Everything is covered by API, unit and
+> browser tests. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ## What the API does today
 
