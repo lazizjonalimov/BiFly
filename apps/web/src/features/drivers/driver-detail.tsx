@@ -25,6 +25,7 @@ import { DocumentsPanel } from "@/features/documents/documents-panel";
 import { DriverSheet } from "@/features/drivers/driver-sheet";
 import { RelatedLoads } from "@/features/loads/related-loads";
 import { ComplianceAlert, ComplianceBadge, ExpiryDate } from "@/features/safety/compliance";
+import { DriverPay } from "@/features/settlements/driver-pay";
 import { useTerminals } from "@/hooks/use-options";
 import { api, unwrap } from "@/lib/api/client";
 import type { Schema } from "@/lib/api/types";
@@ -184,6 +185,7 @@ export function DriverDetail({ id }: { id: string }) {
           </TabsTrigger>
           {can("documents.read") ? <TabsTrigger value="documents">Documents</TabsTrigger> : null}
           {can("loads.read") ? <TabsTrigger value="loads">Loads</TabsTrigger> : null}
+          {can("settlements.read") ? <TabsTrigger value="pay">Pay</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="profile" className="grid gap-4">
@@ -302,6 +304,13 @@ export function DriverDetail({ id }: { id: string }) {
           <TabsContent value="loads">
             <Card>
               <RelatedLoads filter={{ driver_id: driver.id }} emptyText="This driver hasn't been assigned a load yet." />
+            </Card>
+          </TabsContent>
+        ) : null}
+        {can("settlements.read") ? (
+          <TabsContent value="pay">
+            <Card>
+              <DriverPay driverId={driver.id} />
             </Card>
           </TabsContent>
         ) : null}

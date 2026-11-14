@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { BanknoteIcon, ClipboardCheckIcon, ContainerIcon, FileTextIcon, IdCardIcon, Loader2Icon, PackageIcon, PlusIcon, ReceiptIcon, SearchIcon, TruckIcon, UsersIcon, WrenchIcon, type LucideIcon } from "lucide-react";
+import { BanknoteIcon, ClipboardCheckIcon, ContainerIcon, FileTextIcon, HandCoinsIcon, IdCardIcon, Loader2Icon, PackageIcon, PlusIcon, ReceiptIcon, ReceiptTextIcon, SearchIcon, TruckIcon, UsersIcon, WrenchIcon, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -57,6 +57,8 @@ export function useQuickCreate() {
     { label: "Work order", path: ["maintenance?new=1"], icon: WrenchIcon, allowed: can("maintenance.manage") },
     { label: "Invoice", path: ["finance/invoices?new=1"], icon: ReceiptIcon, allowed: can("invoices.create") },
     { label: "Payment", path: ["finance/payments?new=1"], icon: BanknoteIcon, allowed: can("payments.record") },
+    { label: "Expense", path: ["finance/expenses?new=1"], icon: ReceiptTextIcon, allowed: can("expenses.manage") },
+    { label: "Driver settlement", path: ["finance/settlements?new=1"], icon: HandCoinsIcon, allowed: can("settlements.manage") },
     { label: "Inspection", path: ["maintenance/inspections?new=1"], icon: ClipboardCheckIcon, allowed: can("safety.manage") || can("maintenance.manage") },
   ].filter((item) => item.allowed);
 }

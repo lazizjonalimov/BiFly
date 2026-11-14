@@ -32,6 +32,7 @@ from app.modules.maintenance import service as maintenance
 from app.modules.maintenance.models import WorkOrder
 from app.modules.organizations.models import Terminal
 from app.modules.safety.router import SafetySummary, summary_counts
+from app.modules.settlements import service as settlements
 
 router = APIRouter()
 DELIVERED = ("delivered", "pod_review", "completed")
@@ -170,6 +171,10 @@ def dashboard_exceptions(p: Principal = Depends(require("dashboard.read")), db: 
             "Open repairs marked urgent", "maintenance", priority="urgent", open="true")
         add(shop.overdue, "WORK_ORDERS_OVERDUE", "medium", "Work orders past their date",
             "Scheduled for a day that has passed and still open", "maintenance", overdue="true")
+    if p.can("settlements.read"):
+        pay = settlements.summary(db, p)
+        add(pay.approved_unpaid, "SETTLEMENTS_TO_PAY", "medium", "Driver pay approved, not yet paid",
+            f"{pay.to_pay} {pay.currency} to pay out", "settlements", status="approved")
     if p.can("invoices.read"):
         owed = finance.receivables(db, p)
         add(owed.overdue_invoices, "INVOICES_OVERDUE", "high", "Overdue invoices",

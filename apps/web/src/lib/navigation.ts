@@ -1,4 +1,4 @@
-import { BanknoteIcon, Building2Icon, ContainerIcon, FileTextIcon, IdCardIcon, LayoutDashboardIcon, PackageIcon, RadioTowerIcon, ReceiptIcon, ShieldCheckIcon, TruckIcon, UserCogIcon, UsersIcon, WarehouseIcon, WrenchIcon, type LucideIcon } from "lucide-react";
+import { BanknoteIcon, Building2Icon, ContainerIcon, FileTextIcon, FuelIcon, HandCoinsIcon, IdCardIcon, LayoutDashboardIcon, PackageIcon, RadioTowerIcon, ReceiptIcon, ReceiptTextIcon, ShieldCheckIcon, TruckIcon, UserCogIcon, UsersIcon, WarehouseIcon, WrenchIcon, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -51,6 +51,9 @@ export const NAVIGATION: NavGroup[] = [
     items: [
       { label: "Invoices", path: "finance/invoices", icon: ReceiptIcon, anyOf: ["invoices.read"] },
       { label: "Payments", path: "finance/payments", icon: BanknoteIcon, anyOf: ["payments.read"] },
+      { label: "Expenses", path: "finance/expenses", icon: ReceiptTextIcon, anyOf: ["expenses.read"] },
+      { label: "Fuel", path: "finance/fuel", icon: FuelIcon, anyOf: ["expenses.read"] },
+      { label: "Driver pay", path: "finance/settlements", icon: HandCoinsIcon, anyOf: ["settlements.read"] },
     ],
   },
   {
@@ -85,6 +88,9 @@ export const SEGMENT_LABELS: Record<string, string> = {
   finance: "Finance",
   invoices: "Invoices",
   payments: "Payments",
+  expenses: "Expenses",
+  fuel: "Fuel",
+  settlements: "Driver pay",
 };
 
 /**
@@ -92,7 +98,7 @@ export const SEGMENT_LABELS: Record<string, string> = {
  * dashboard's exceptions, search results). A resource whose screen isn't built yet has no entry, and the
  * link is simply not offered.
  */
-const RESOURCE_PATHS: Record<string, string> = { loads: "loads", customers: "customers", drivers: "drivers", vehicles: "equipment/trucks", trailers: "equipment/trailers", safety: "safety", documents: "documents", maintenance: "maintenance", invoices: "finance/invoices", payments: "finance/payments" };
+const RESOURCE_PATHS: Record<string, string> = { loads: "loads", customers: "customers", drivers: "drivers", vehicles: "equipment/trucks", trailers: "equipment/trailers", safety: "safety", documents: "documents", maintenance: "maintenance", invoices: "finance/invoices", payments: "finance/payments", expenses: "finance/expenses", settlements: "finance/settlements" };
 
 export function resourcePath(resource: string): string | null {
   return RESOURCE_PATHS[resource] ?? null;

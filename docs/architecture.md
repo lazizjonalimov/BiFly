@@ -180,6 +180,23 @@ deleted. Their cost lines can change only while the work order is open; the tota
 lock on the work order. Inspections are a record: insert-only, apart from linking a defect to the work
 order raised for it. A passed annual inspection moves the unit's inspection date a year on.
 
+## Driver pay
+
+A settlement covers one driver and a period. Its draft is built from sources rather than typed in: every
+load the driver delivered up to the end of the period that no other settlement (not void) has paid, priced
+by the driver's pay terms (per mile, a percentage of the load's revenue, or flat per load); the charges on
+those loads marked payable to the driver; and the driver's expenses marked "reimburse" or "deduct". The
+draft is rebuilt from those sources when it is created, when it is recalculated, when its period or one of
+its expenses changes, and one last time when it is approved. Lines entered by hand (a bonus, an insurance
+share) survive a rebuild.
+
+- Each driver has at most one draft (a partial unique index), and building a draft locks the driver's row,
+  so two people can't pay the same load twice.
+- Approval numbers the settlement (`ST-1001`, gapless like invoices) and fixes it. Database triggers then
+  refuse any change to its figures, its lines, or the expenses it reimburses or deducts.
+- A mistake is a **void** (approved, unpaid) and a new settlement; voiding frees its loads and expenses.
+  Paid is final.
+
 ## Money
 
 - `NUMERIC(12,2)` in the database, `Decimal` in Python, a string with two decimals in JSON.
@@ -211,8 +228,8 @@ See [decision 0004](decisions/0004-api-contract.md).
 - **Lists**: `{"items", "page": {"next_cursor", "has_more", "total_count"}, "meta"}`. Sorting, filtering
   and paging run in the database. Sort keys and filters are allowlisted per endpoint; unknown ones are
   rejected.
-- **Idempotency**: creating loads, assignments, invoices, payments, work orders and inspections, and issuing
-  an invoice, accept an `Idempotency-Key`. A repeat returns the stored response; the same key with a different request is refused.
+- **Idempotency**: creating loads, assignments, invoices, payments, work orders, inspections, expenses and
+  settlements, and issuing an invoice, accept an `Idempotency-Key`. A repeat returns the stored response; the same key with a different request is refused.
 - **Dates**: instants are UTC; calendar dates (due dates, expirations, "today") are the company's local
   date, from `Principal.today()`, never the server's.
 - **Correlation**: `X-Request-ID` is accepted or generated, echoed, logged, stored on audit entries and
@@ -230,7 +247,6 @@ See [decision 0004](decisions/0004-api-contract.md).
 | "Picked up" as its own state | Folded into `in_transit` | [Decision 0002](decisions/0002-load-lifecycle.md) |
 | Shared drivers and equipment across an owner's companies | Independent copies per company | [Decision 0001](decisions/0001-multi-company-profile.md) |
 | Async report jobs | Reports run in the request, with CSV export | Jobs when reports get heavy |
-| Expenses, fuel, settlements | Not built yet | [Roadmap](roadmap.md) |
 
 ## Operating notes
 

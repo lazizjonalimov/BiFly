@@ -31,6 +31,7 @@ from app.modules.dispatch.models import DispatchAssignment
 from app.modules.documents.models import Document, DocumentLink
 from app.modules.drivers.models import Driver
 from app.modules.equipment.models import Trailer, Vehicle
+from app.modules.expenses.models import Expense
 from app.modules.finance.models import Invoice
 from app.modules.loads import service as loads
 from app.modules.loads.models import Load
@@ -42,7 +43,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 DocumentType = Literal["bol", "pod", "rate_confirmation", "receipt", "license", "medical", "insurance",
                        "registration", "inspection", "maintenance", "invoice", "other"]
-EntityType = Literal["load", "driver", "vehicle", "trailer", "customer", "invoice", "work_order"]
+EntityType = Literal["load", "driver", "vehicle", "trailer", "customer", "invoice", "work_order", "expense"]
 
 # What a document can be attached to: the record, the permission needed to see that record, its display name.
 ENTITIES = {
@@ -53,6 +54,7 @@ ENTITIES = {
     "customer": (Customer, "customers.read", lambda x: x.name),
     "invoice": (Invoice, "invoices.read", lambda x: x.invoice_number or "Draft invoice"),
     "work_order": (WorkOrder, "maintenance.read", lambda x: f"Work order {x.number}"),
+    "expense": (Expense, "expenses.read", lambda x: f"{x.category.capitalize()} expense, {x.incurred_on.isoformat()}"),
 }
 # Scans of personal identity documents: only roles that may see the numbers on them may see the scans.
 SENSITIVE = ("license", "medical")

@@ -6,7 +6,7 @@ them in one click.
 
 > **Status.** The API covers everything in the table below and is fully tested. The web application has
 > screens for sign-in and companies, the dashboard, the directory, loads, dispatch, documents, safety,
-> maintenance, invoices and payments; expenses, settlements, reports and administration screens follow. A screen appears in the app when it is
+> maintenance, invoices, payments, expenses, fuel and driver pay; reports and administration screens follow. A screen appears in the app when it is
 > built, never as a placeholder. Progress is tracked in [docs/roadmap.md](docs/roadmap.md).
 
 ## What the API does today
@@ -22,10 +22,11 @@ them in one click.
 | Safety | Compliance status on every driver and unit, expirations queue, blocking of expired drivers and equipment at assignment and at dispatch |
 | Maintenance | Work orders with parts and labour costs, start, complete and cancel; inspections with defects; out-of-service units kept off the dispatch board until returned to service, which is refused while the repair is open |
 | Finance | Draft invoices built from completed loads, gapless numbering at issue, immutable issued invoices, void, payments with allocations, unapplied money, reversal, receivables aging |
+| Costs and driver pay | Expenses with receipts (fuel with gallons and state, tolls, lumpers, advances and more), fuel by state for fuel tax and by truck with miles per gallon, driver settlements built from delivered loads, driver-payable charges, reimbursements and deductions, approved settlements fixed by the database |
 | Insight | Role-aware dashboard, exceptions list, global search, revenue, driver, truck and aging reports with CSV export |
 | Driver access | A driver sees and updates only the loads they are hauling, and can add the proof of delivery |
 
-Not built yet: expenses and fuel, driver settlements, the driver mobile app, the
+Not built yet: the driver mobile app, the
 customer portal, maps, ELD, notifications, and the AWS infrastructure.
 
 ## Architecture in one minute

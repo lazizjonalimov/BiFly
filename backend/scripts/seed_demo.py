@@ -305,6 +305,32 @@ def main() -> int:
             "inspector": "Illinois State Police", "report_number": "IL-55120",
             "defects": [{"item": "Marker lamp out", "severity": "minor", "description": "Rear left clearance lamp"}]})
 
+        # --- expenses and fuel ------------------------------------------------------------------------
+        for days, truck, state, gallons, amount, stop in ((-8, 0, "IL", "112.4", "438.36", "Pilot #412, Joliet"),
+                                                          (-6, 0, "MO", "98.7", "371.11", "Love's #303, Joplin"),
+                                                          (-5, 2, "TX", "120.0", "430.80", "TA Dallas South"),
+                                                          (-3, 0, "IL", "105.2", "414.49", "Pilot #412, Joliet"),
+                                                          (-2, 2, "OK", "88.9", "322.71", "Love's #261, Oklahoma City")):
+            post("/expenses", {"category": "fuel", "incurred_on": date(days), "amount": amount, "gallons": gallons,
+                               "jurisdiction": state, "vendor": stop, "vehicle_id": trucks[truck]["id"],
+                               "driver_id": drivers[0 if truck == 0 else 2]["id"], "paid_with": "fuel_card"})
+        post("/expenses", {"category": "tolls", "incurred_on": date(-6), "amount": "38.40", "vendor": "Illinois Tollway",
+                           "vehicle_id": trucks[0]["id"], "paid_with": "company_card"})
+        post("/expenses", {"category": "lumper", "incurred_on": date(-4), "amount": "175.00", "vendor": "Capstone Logistics",
+                           "driver_id": drivers[0]["id"], "driver_treatment": "reimburse", "load_id": a["id"],
+                           "reference": "CAP-88412", "paid_with": "driver"})
+        post("/expenses", {"category": "advance", "incurred_on": date(-3), "amount": "150.00", "description": "Cash advance",
+                           "driver_id": drivers[0]["id"], "driver_treatment": "deduct", "paid_with": "cash"})
+
+        # --- driver pay -------------------------------------------------------------------------------
+        # Last week's pay for the owner-operator is approved; this week's for Dana is a draft to check.
+        week = {"period_start": date(-6), "period_end": date(0)}
+        priya = post("/settlements", {"driver_id": drivers[2]["id"], **week})
+        post(f"/settlements/{priya['id']}/approve", {"version": priya["version"]})
+        dana = post("/settlements", {"driver_id": drivers[0]["id"], **week})
+        post(f"/settlements/{dana['id']}/lines", {"kind": "adjustment", "description": "Safety bonus", "amount": "75.00",
+                                                  "version": dana["version"]})
+
         # --- a second company under the same profile --------------------------------------------------
         second = post("/account/companies", {
             "name": "Northline Logistics South", "dot_number": "2718281", "mc_number": "MC-161803",
