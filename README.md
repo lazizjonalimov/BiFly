@@ -104,8 +104,9 @@ npm install
 npm run dev
 ```
 
-Load a demo account: two companies, loads at every stage, invoices and payments. It prints the sign-in
-details:
+Load a demo account: two companies, loads at every stage, invoices and payments, work orders and
+inspections, fuel and other expenses, and driver pay (one settlement approved, one draft). It prints the
+sign-in details:
 
 ```bash
 cd backend && source .venv/bin/activate
